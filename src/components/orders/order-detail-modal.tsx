@@ -29,6 +29,8 @@ interface OrderDetailModalProps {
 
 const STATUS_COLORS: Record<string, string> = {
   Delivered: "bg-green-50 text-green-700 border-green-100",
+  "Pending Delivery": "bg-amber-50 text-amber-700 border-amber-100",
+  "Pending Shipment Arrival": "bg-orange-50 text-orange-700 border-orange-100",
   "Pending Delivered": "bg-amber-50 text-amber-700 border-amber-100",
   Pending: "bg-amber-50 text-amber-700 border-amber-100",
   Cancelled: "bg-red-50 text-red-700 border-red-100",
@@ -42,7 +44,7 @@ const MODE_COLORS: Record<string, string> = {
   KOL: "bg-pink-50 text-pink-700 border-pink-100",
 }
 
-const QUICK_STATUSES = ["Pending", "Pending Delivered", "Delivered", "Cancelled"] as const
+const QUICK_STATUSES = ["Pending Shipment Arrival", "Pending Delivery", "Delivered"] as const
 
 const MODE_OPTIONS = [
   "Direct Purchase",
@@ -391,8 +393,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                     const isLoading = updatingStatus === s
                     const activeColor =
                       s === "Delivered" ? "bg-green-500 text-white border-green-500" :
-                      s === "Cancelled" ? "bg-red-500 text-white border-red-500" :
-                      s === "Pending Delivered" ? "bg-amber-500 text-white border-amber-500" :
+                      s === "Pending Delivery" ? "bg-amber-500 text-white border-amber-500" :
+                      s === "Pending Shipment Arrival" ? "bg-orange-500 text-white border-orange-500" :
                       "bg-slate-700 text-white border-slate-700"
                     return (
                       <button
@@ -455,7 +457,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 {inp("case_code")}
               </Field>
               <Field label="Status" value={currentOrder.status ?? "—"} editing={isEditing}>
-                {sel("status", [...QUICK_STATUSES, "Returned"])}
+                {sel("status", ["Pending Shipment Arrival", "Pending Delivery", "Delivered", "Cancelled", "Returned"])}
               </Field>
               <Field label="Customer Name" value={currentOrder.customer_name} editing={isEditing}>
                 {inp("customer_name")}

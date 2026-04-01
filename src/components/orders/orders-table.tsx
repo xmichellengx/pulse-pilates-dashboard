@@ -53,6 +53,8 @@ interface OrdersTableProps {
 
 const STATUS_COLORS: Record<string, string> = {
   Delivered: "bg-green-50 text-green-700 border-green-100",
+  "Pending Delivery": "bg-amber-50 text-amber-700 border-amber-100",
+  "Pending Shipment Arrival": "bg-orange-50 text-orange-700 border-orange-100",
   "Pending Delivered": "bg-amber-50 text-amber-700 border-amber-100",
   Pending: "bg-amber-50 text-amber-700 border-amber-100",
   Cancelled: "bg-red-50 text-red-700 border-red-100",
@@ -220,7 +222,8 @@ export function OrdersTable({
         >
           <option value="All">All Statuses</option>
           <option value="Delivered">Delivered</option>
-          <option value="Pending Delivered">Pending Delivered</option>
+          <option value="Pending Shipment Arrival">Pending Shipment Arrival</option>
+          <option value="Pending Delivery">Pending Delivery</option>
           <option value="Pending">Pending</option>
           <option value="Cancelled">Cancelled</option>
           <option value="Returned">Returned</option>
