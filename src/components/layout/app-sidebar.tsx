@@ -88,7 +88,7 @@ export function AppSidebar() {
               Pulse Pilates
             </span>
             <span className="text-xs leading-tight" style={{ color: "var(--sidebar-muted-foreground)" }}>
-              Operations Hub
+              Dashboard
             </span>
           </div>
         </div>
