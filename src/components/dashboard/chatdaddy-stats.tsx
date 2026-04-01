@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 
 interface ChatdaddyStats {
   incomingToday: number
@@ -13,7 +11,6 @@ interface ChatdaddyStats {
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
-// WhatsApp-style green icon as an inline SVG
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -56,34 +53,37 @@ export function ChatdaddyStats() {
   const displayValue = loading ? "..." : error ? "—" : String(stats?.incomingToday ?? 0)
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">Messages Today</CardTitle>
-        <WhatsAppIcon className="h-4 w-4 text-green-500" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{displayValue}</div>
-        <p className="text-xs text-muted-foreground mt-1">
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow duration-200">
+      {/* Header row */}
+      <div className="flex items-start justify-between">
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-50">
+          <WhatsAppIcon className="h-5 w-5 text-green-600" />
+        </div>
+        <span className="text-xs font-medium text-slate-400 text-right leading-tight pt-0.5">WhatsApp Msgs</span>
+      </div>
+
+      {/* Value */}
+      <div>
+        <p className="text-3xl font-bold text-slate-900 tracking-tight leading-none">{displayValue}</p>
+      </div>
+
+      {/* Footer row */}
+      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+        <span className="text-xs text-slate-400">
           {error
             ? "Could not load data"
             : stats
-            ? `${stats.unreadTotal} unread · ${stats.activeChatsToday} active today`
-            : "Loading WhatsApp stats…"}
-        </p>
-        <div className="mt-2 flex items-center gap-2">
-          <Badge
-            variant="secondary"
-            className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-          >
-            Live
-          </Badge>
-          {stats && (
-            <span className="text-xs text-muted-foreground">
-              Updated {new Date(stats.lastUpdated).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            ? `${stats.unreadTotal} unread · ${stats.activeChatsToday} active`
+            : "Loading…"}
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-600">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+          </span>
+          Live
+        </span>
+      </div>
+    </div>
   )
 }
