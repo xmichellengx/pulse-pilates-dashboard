@@ -1,5 +1,6 @@
 import { TrendingUp, ShoppingCart, Repeat, MessageSquare } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/server"
 
 interface KpiCardProps {
   title: string
@@ -65,38 +66,82 @@ function KpiCard({
   )
 }
 
-export function KpiCards() {
+export async function KpiCards() {
+  const supabase = await createClient()
+
+  const now = new Date()
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
+  const todayStr = now.toISOString().split("T")[0]
+  const monthLabel = now.toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+
+  // Run all 4 queries in parallel
+  const [revenueRes, ordersRes, rentalsRes, leadsRes] = await Promise.all([
+    // Revenue MTD
+    supabase
+      .from("orders")
+      .select("amount")
+      .gte("payment_date", monthStart)
+      .not("status", "in", '("Cancelled","Returned")'),
+
+    // Orders MTD
+    supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .gte("payment_date", monthStart),
+
+    // Active Rentals: mode contains rental, delivered, balance cleared
+    supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .ilike("mode", "%rental%")
+      .eq("status", "Delivered")
+      .eq("balance", 0),
+
+    // Leads Today
+    supabase
+      .from("leads")
+      .select("count")
+      .eq("date", todayStr),
+  ])
+
+  const revenueMTD = (revenueRes.data ?? []).reduce(
+    (sum, r) => sum + (r.amount ?? 0),
+    0
+  )
+  const ordersMTD = ordersRes.count ?? 0
+  const activeRentals = rentalsRes.count ?? 0
+  const leadsToday = (leadsRes.data ?? []).reduce(
+    (sum, r) => sum + (r.count ?? 0),
+    0
+  )
+
   const kpis: KpiCardProps[] = [
     {
       title: "Revenue MTD",
-      value: formatCurrency(127500),
-      period: "April 2026",
-      badge: "+12% vs last month",
-      badgeColor: "green",
+      value: formatCurrency(revenueMTD),
+      period: monthLabel,
       iconBg: "bg-green-50",
       icon: <TrendingUp className="h-5 w-5 text-green-600" />,
     },
     {
       title: "Orders MTD",
-      value: "23",
-      period: "April 2026",
-      badge: "+4 new",
+      value: String(ordersMTD),
+      period: monthLabel,
       badgeColor: "blue",
       iconBg: "bg-blue-50",
       icon: <ShoppingCart className="h-5 w-5 text-blue-600" />,
     },
     {
       title: "Active Rentals",
-      value: "18",
-      period: "Month 3 conversions",
-      badge: "3 follow-ups",
+      value: String(activeRentals),
+      period: "Delivered, balance cleared",
       badgeColor: "amber",
       iconBg: "bg-purple-50",
       icon: <Repeat className="h-5 w-5 text-purple-600" />,
     },
     {
       title: "Leads Today",
-      value: "14",
+      value: String(leadsToday),
       period: "via all channels",
       live: true,
       iconBg: "bg-orange-50",

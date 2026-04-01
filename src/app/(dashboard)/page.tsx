@@ -2,6 +2,7 @@ import Link from "next/link"
 import { KpiCards } from "@/components/dashboard/kpi-cards"
 import { ChatdaddyStats } from "@/components/dashboard/chatdaddy-stats"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { createClient } from "@/lib/supabase/server"
 import {
   FileText,
   Phone,
@@ -29,29 +30,58 @@ function formatDate(date: Date) {
   })
 }
 
-// Mock data — will be replaced with Supabase queries in Phase 2
-const pendingDeliveries = [
-  { caseCode: "PP0238", customer: "Sarah Lim", product: "Alu II Reformer", deliveryDate: "3 Apr 2026", location: "Petaling Jaya" },
-  { caseCode: "PP0239", customer: "Jason Tan", product: "Classic Reformer", deliveryDate: "5 Apr 2026", location: "Shah Alam" },
-  { caseCode: "PPAS065", customer: "Studio Flex KL", product: "Alu II Tower x2", deliveryDate: "7 Apr 2026", location: "KLCC" },
-]
+function formatShortDate(dateStr: string | null) {
+  if (!dateStr) return "TBD"
+  try {
+    return new Date(dateStr).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+  } catch {
+    return dateStr
+  }
+}
 
-const rentalFollowUps = [
-  { caseCode: "PP0201", customer: "Mei Ling", product: "Alu II Reformer", month: 3, monthlyRate: 390, rentalStart: "Jan 2026" },
-  { caseCode: "PP0198", customer: "David Wong", product: "Alu II Foldable", month: 2, monthlyRate: 450, rentalStart: "Feb 2026" },
-  { caseCode: "PP0205", customer: "Priya K", product: "Alu II Tower", month: 3, monthlyRate: 590, rentalStart: "Jan 2026" },
-]
-
-const outstandingBalances = [
-  { caseCode: "PP0230", customer: "Ahmad Razif", balance: 1200, product: "Classic Reformer", dueDate: "15 Mar 2026" },
-  { caseCode: "PPAS-SG042", customer: "Joanne Ng", balance: 950, product: "Alu II Reformer", dueDate: "20 Mar 2026" },
-]
-
-const totalOutstanding = outstandingBalances.reduce((sum, i) => sum + i.balance, 0)
-
-export default function DashboardPage() {
+export default async function DashboardPage() {
   const greeting = getGreeting()
   const today = formatDate(new Date())
+
+  const supabase = await createClient()
+
+  const [pendingRes, balancesRes, rentalsRes] = await Promise.all([
+    // Pending deliveries
+    supabase
+      .from("orders")
+      .select("id, case_code, customer_name, product_name, delivery_date, location")
+      .eq("status", "Pending Delivered")
+      .order("delivery_date", { ascending: true })
+      .limit(10),
+
+    // Outstanding balances
+    supabase
+      .from("orders")
+      .select("id, case_code, customer_name, product_name, balance, payment_date")
+      .gt("balance", 0)
+      .not("status", "in", '("Cancelled","Returned")')
+      .order("balance", { ascending: false })
+      .limit(10),
+
+    // Rental follow-ups: delivered rentals
+    supabase
+      .from("orders")
+      .select("id, case_code, customer_name, product_name, monthly_rental, delivery_date, payment_date")
+      .ilike("mode", "%rental%")
+      .eq("status", "Delivered")
+      .order("delivery_date", { ascending: true })
+      .limit(10),
+  ])
+
+  const pendingDeliveries = pendingRes.data ?? []
+  const outstandingBalances = balancesRes.data ?? []
+  const rentalFollowUps = rentalsRes.data ?? []
+
+  const totalOutstanding = outstandingBalances.reduce((sum, i) => sum + (i.balance ?? 0), 0)
 
   return (
     <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
@@ -148,14 +178,14 @@ export default function DashboardPage() {
               </div>
             ) : (
               pendingDeliveries.map((item) => (
-                <div key={item.caseCode} className="flex flex-col gap-0.5 text-sm border-l-2 border-orange-400 pl-3 py-0.5">
+                <div key={item.id} className="flex flex-col gap-0.5 text-sm border-l-2 border-orange-400 pl-3 py-0.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-800 truncate">{item.customer}</span>
-                    <span className="text-xs text-slate-400 font-mono flex-shrink-0">{item.caseCode}</span>
+                    <span className="font-semibold text-slate-800 truncate">{item.customer_name}</span>
+                    <span className="text-xs text-slate-400 font-mono flex-shrink-0">{item.case_code}</span>
                   </div>
-                  <span className="text-xs text-slate-500">{item.product}</span>
+                  <span className="text-xs text-slate-500">{item.product_name}</span>
                   <span className="text-xs font-medium text-orange-600">
-                    {item.deliveryDate} &middot; {item.location}
+                    {formatShortDate(item.delivery_date)} &middot; {item.location ?? "—"}
                   </span>
                 </div>
               ))
@@ -183,20 +213,18 @@ export default function DashboardPage() {
               </div>
             ) : (
               rentalFollowUps.map((item) => (
-                <div key={item.caseCode} className="flex flex-col gap-0.5 text-sm border-l-2 border-blue-400 pl-3 py-0.5">
+                <div key={item.id} className="flex flex-col gap-0.5 text-sm border-l-2 border-blue-400 pl-3 py-0.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-800 truncate">{item.customer}</span>
-                    <span className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-100 flex-shrink-0">
-                      Month {item.month}
-                    </span>
+                    <span className="font-semibold text-slate-800 truncate">{item.customer_name}</span>
+                    <span className="text-xs text-slate-400 font-mono flex-shrink-0">{item.case_code}</span>
                   </div>
-                  <span className="text-xs text-slate-500">{item.product}</span>
+                  <span className="text-xs text-slate-500">{item.product_name}</span>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-blue-600">
-                      RM {item.monthlyRate}/mo &middot; Since {item.rentalStart}
+                      {item.monthly_rental ? `RM ${item.monthly_rental}/mo` : "Rental"} &middot; Since {formatShortDate(item.delivery_date)}
                     </span>
                     <Link
-                      href={`/rentals/${item.caseCode}`}
+                      href={`/rentals/${item.case_code}`}
                       className="text-xs font-medium text-indigo-500 hover:text-indigo-700 transition-colors"
                     >
                       Offer conversion
@@ -233,15 +261,17 @@ export default function DashboardPage() {
               </div>
             ) : (
               outstandingBalances.map((item) => (
-                <div key={item.caseCode} className="flex flex-col gap-0.5 text-sm border-l-2 border-red-400 pl-3 py-0.5">
+                <div key={item.id} className="flex flex-col gap-0.5 text-sm border-l-2 border-red-400 pl-3 py-0.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-800 truncate">{item.customer}</span>
+                    <span className="font-semibold text-slate-800 truncate">{item.customer_name}</span>
                     <span className="text-xs font-bold text-red-600 font-mono flex-shrink-0">
-                      RM {item.balance.toLocaleString()}
+                      RM {(item.balance ?? 0).toLocaleString()}
                     </span>
                   </div>
-                  <span className="text-xs text-slate-500">{item.product}</span>
-                  <span className="text-xs font-medium text-red-500">Due {item.dueDate}</span>
+                  <span className="text-xs text-slate-500">{item.product_name}</span>
+                  <span className="text-xs font-medium text-red-500">
+                    {item.case_code} &middot; Since {formatShortDate(item.payment_date)}
+                  </span>
                 </div>
               ))
             )}
