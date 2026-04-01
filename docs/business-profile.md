@@ -4,7 +4,7 @@
 Pulse Pilates (pilatesreformer.my) is a Malaysian pilates reformer equipment retailer and rental company. They source equipment from Chinese manufacturers and sell/rent under the Pulse Pilates brand, including custom-colour and logo-engraved orders for studios (Pulse for Business / P4B).
 
 **GitHub:** https://github.com/xmichellengx/pulse-pilates-dashboard
-**Vercel:** TBD after deploy
+**Vercel:** https://pulse-pilates.vercel.app
 **Internal Dashboard:** This project
 
 ---
