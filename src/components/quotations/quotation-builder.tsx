@@ -64,6 +64,7 @@ const schema = z.object({
   customer_name: z.string().min(1, "Name required"),
   phone: z.string().min(1, "Phone required"),
   email: z.string().optional(),
+  studio_name: z.string().optional(),
   market: z.enum(["MY", "SG"]),
   pricing_tier: z.enum(["retail", "p4b_t2", "p4b_t1"]),
   lead_source: z.string().min(1, "Lead source required"),
@@ -606,6 +607,7 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
         customer_name: watchedValues.customer_name,
         customer_email: watchedValues.email,
         customer_phone: watchedValues.phone,
+        studio_name: watchedValues.studio_name,
         market,
         items: lineItems,
         delivery_fee: watchedValues.delivery_fee,
@@ -755,6 +757,18 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
                 type="email"
                 {...register("email")}
                 placeholder="customer@email.com"
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="studio_name" className="text-sm font-medium text-slate-700">
+                Studio Name <span className="text-slate-400 font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="studio_name"
+                {...register("studio_name")}
+                placeholder="e.g. Bliss Pilates Studio"
                 className="h-9"
               />
             </div>
