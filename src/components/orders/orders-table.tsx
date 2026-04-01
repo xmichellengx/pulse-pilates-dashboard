@@ -101,7 +101,7 @@ function formatDisplayDate(dateStr: string | null) {
 
 function downloadCSV(orders: Order[]) {
   const headers = [
-    "Case Code", "Customer", "Email", "Phone", "Product", "Units",
+    "Order Number", "Customer", "Email", "Phone", "Product", "Units",
     "Mode", "Amount (RM)", "Balance (RM)", "Status", "Delivery Date",
     "Payment Date", "Lead Source", "Market", "Location", "Remarks",
   ]
@@ -189,7 +189,7 @@ export function OrdersTable({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search name or case code..."
+            placeholder="Search name or order number..."
             defaultValue={search}
             onChange={(e) => {
               const v = e.target.value
@@ -256,7 +256,7 @@ export function OrdersTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/60">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-28">Case Code</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-28">Order No.</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-32">Mode</th>

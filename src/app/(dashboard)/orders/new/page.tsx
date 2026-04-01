@@ -229,7 +229,7 @@ export default function NewOrderPage() {
 
   async function handleSave() {
     if (!form.customer_name.trim()) { toast.error("Customer name required"); return }
-    if (!form.case_code.trim()) { toast.error("Case code required"); return }
+    if (!form.case_code.trim()) { toast.error("Order number required"); return }
 
     setSaving(true)
     try {
@@ -340,12 +340,12 @@ export default function NewOrderPage() {
         {/* LEFT — Order form */}
         <div className="space-y-4">
 
-          {/* Case Code */}
+          {/* Order Number */}
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
             <div className="flex items-end gap-3">
               <div className="flex-1">
                 <label className={labelCls}>
-                  Case Code
+                  Order Number
                   <span className="ml-1 font-normal text-slate-400">(auto-suggested)</span>
                 </label>
                 <input
