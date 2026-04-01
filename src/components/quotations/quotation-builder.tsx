@@ -31,6 +31,11 @@ import {
 
 // ---------- types ----------
 
+interface DiscountItem {
+  label: string
+  amount: number
+}
+
 export interface Product {
   id: string
   name: string
@@ -486,6 +491,7 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
   const loadingProducts = false
   const [copied, setCopied] = useState(false)
   const [savedQuotationNumber, setSavedQuotationNumber] = useState("")
+  const [discounts, setDiscounts] = useState<DiscountItem[]>([])
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
     {
@@ -554,7 +560,8 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
     (s, i) => s + i.unit_price * i.qty + i.customisation_surcharge,
     0
   )
-  const total = subtotal + watchedValues.delivery_fee + watchedValues.installation_fee
+  const totalDiscount = discounts.reduce((s, d) => s + (d.amount || 0), 0)
+  const total = subtotal + watchedValues.delivery_fee + watchedValues.installation_fee - totalDiscount
   const isRentalMode = lineItems.length === 1 && lineItems[0].purchase_mode === "rental"
 
   function addItem() {
@@ -614,6 +621,7 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
         installation_fee: watchedValues.installation_fee,
         subtotal,
         total,
+        discounts: discounts.filter((d) => d.amount > 0),
         estimated_delivery: watchedValues.estimated_delivery,
         delivery_location: watchedValues.delivery_location,
         remarks: watchedValues.remarks,
@@ -982,6 +990,51 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
               />
             </div>
 
+            {/* Discounts */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium text-slate-700">Discounts</Label>
+                <button
+                  type="button"
+                  onClick={() => setDiscounts((prev) => [...prev, { label: "", amount: 0 }])}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-100 bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-all"
+                >
+                  <Plus className="h-3 w-3" /> Add Discount
+                </button>
+              </div>
+              {discounts.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No discounts</p>
+              ) : (
+                <div className="space-y-2">
+                  {discounts.map((d, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        placeholder="Label (e.g. Michelle Referral)"
+                        value={d.label}
+                        onChange={(e) => setDiscounts((prev) => prev.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                        className="h-8 flex-1 text-sm"
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Amount"
+                        value={d.amount || ""}
+                        onChange={(e) => setDiscounts((prev) => prev.map((x, i) => i === idx ? { ...x, amount: parseFloat(e.target.value) || 0 } : x))}
+                        className="h-8 w-28 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setDiscounts((prev) => prev.filter((_, i) => i !== idx))}
+                        className="text-slate-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Totals preview */}
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 space-y-2">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -991,6 +1044,12 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
                 <span>Equipment</span>
                 <span>{currency} {subtotal.toLocaleString()}</span>
               </div>
+              {discounts.filter((d) => d.amount > 0).map((d, i) => (
+                <div key={i} className="flex justify-between text-sm text-red-500">
+                  <span>(-) {d.label || "Discount"}</span>
+                  <span>-{currency} {d.amount.toLocaleString()}</span>
+                </div>
+              ))}
               <div className="flex justify-between text-sm text-slate-700">
                 <span>Delivery</span>
                 <span>{currency} {(watchedValues.delivery_fee || 0).toLocaleString()}</span>
@@ -1067,6 +1126,12 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
                 <span>Equipment</span>
                 <span>{currency} {subtotal.toLocaleString()}</span>
               </div>
+              {discounts.filter((d) => d.amount > 0).map((d, i) => (
+                <div key={i} className="flex justify-between text-sm text-red-500">
+                  <span>(-) {d.label || "Discount"}</span>
+                  <span>-{currency} {d.amount.toLocaleString()}</span>
+                </div>
+              ))}
               <div className="flex justify-between text-sm text-slate-700">
                 <span>Delivery</span>
                 <span>{currency} {(watchedValues.delivery_fee || 0).toLocaleString()}</span>

@@ -310,6 +310,11 @@ interface LineItem {
   customisation_surcharge: number
 }
 
+interface DiscountItem {
+  label: string
+  amount: number
+}
+
 interface QuotationPDFInput {
   quotation_number: string
   customer_name: string
@@ -323,6 +328,7 @@ interface QuotationPDFInput {
   installation_fee: number
   subtotal: number
   total: number
+  discounts?: DiscountItem[]
   estimated_delivery?: string
   delivery_location?: string
   remarks?: string
@@ -348,9 +354,12 @@ function QuotationDocument(props: QuotationPDFInput) {
     delivery_fee,
     installation_fee,
     total,
+    discounts,
     estimated_delivery,
     delivery_location,
   } = props
+
+  const activeDiscounts = (discounts ?? []).filter((d) => d.amount > 0)
 
   const currency = market === "SG" ? "SGD" : "RM"
   const validItems = items.filter((i) => i.product_id)
@@ -574,6 +583,12 @@ function QuotationDocument(props: QuotationPDFInput) {
                   <Text style={s.totalLabel}>(+) Installation Fee ({currency})</Text>
                   <Text style={s.totalValue}>{installation_fee.toLocaleString()}</Text>
                 </View>
+                {activeDiscounts.map((d, i) => (
+                  <View key={i} style={s.totalRow}>
+                    <Text style={s.totalLabel}>(-) Discount ({d.label || "Discount"})</Text>
+                    <Text style={s.totalValue}>-{d.amount.toLocaleString()}</Text>
+                  </View>
+                ))}
                 <View style={s.grandTotalRow}>
                   <Text style={s.grandTotalLabel}>Grand Total ({currency})</Text>
                   <Text style={s.grandTotalValue}>{fmt(total, currency)}</Text>
