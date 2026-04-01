@@ -15,6 +15,8 @@ import {
   Pencil,
   Check,
   ChevronDown,
+  Plus,
+  Trash2,
 } from "lucide-react"
 import type { Order } from "./orders-table"
 import { formatCurrency } from "@/lib/utils"
@@ -112,10 +114,29 @@ function Field({
   )
 }
 
+// Parse "Product A ×3 + Product B" into [{name, qty}]
+function parseLineItems(productName: string | null): { name: string; qty: number }[] {
+  if (!productName?.trim()) return [{ name: "", qty: 1 }]
+  return productName.split("+").map((part) => {
+    const match = part.trim().match(/^(.+?)\s+[×x](\d+)$/)
+    if (match) return { name: match[1].trim(), qty: parseInt(match[2], 10) }
+    return { name: part.trim(), qty: 1 }
+  })
+}
+
+// Serialize [{name, qty}] back to "Product A ×3 + Product B"
+function serializeLineItems(items: { name: string; qty: number }[]): string {
+  return items
+    .filter((i) => i.name.trim())
+    .map((i) => (i.qty > 1 ? `${i.name} ×${i.qty}` : i.name))
+    .join(" + ")
+}
+
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
   const supabase = createSupabaseClient()
   const [currentOrder, setCurrentOrder] = useState<Order>(order)
   const [editingOrder, setEditingOrder] = useState<Order>(order)
+  const [lineItems, setLineItems] = useState<{ name: string; qty: number }[]>([{ name: "", qty: 1 }])
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
@@ -152,6 +173,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   function startEdit() {
     setEditingOrder({ ...currentOrder })
+    setLineItems(parseLineItems(currentOrder.product_name))
     setIsEditing(true)
   }
 
@@ -162,6 +184,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function saveEdit() {
     setIsSaving(true)
+    const combinedProduct = serializeLineItems(lineItems)
+    const totalUnits = lineItems.filter((i) => i.name.trim()).reduce((s, i) => s + i.qty, 0)
     try {
       const res = await fetch(`/api/orders/${currentOrder.id}`, {
         method: "PATCH",
@@ -171,8 +195,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           customer_name: editingOrder.customer_name,
           email: editingOrder.email,
           phone: editingOrder.phone,
-          product_name: editingOrder.product_name,
-          units: editingOrder.units,
+          product_name: combinedProduct || editingOrder.product_name,
+          units: totalUnits || editingOrder.units,
           mode: editingOrder.mode,
           payment_type: editingOrder.payment_type,
           amount: editingOrder.amount,
@@ -192,8 +216,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Save failed")
-      setCurrentOrder(editingOrder)
-      onUpdate?.(editingOrder)
+      const saved = { ...editingOrder, product_name: combinedProduct || editingOrder.product_name, units: totalUnits || editingOrder.units }
+      setCurrentOrder(saved)
+      onUpdate?.(saved)
       setIsEditing(false)
       toast.success("Order updated")
     } catch (err) {
@@ -462,15 +487,57 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               <Field label="Customer Name" value={currentOrder.customer_name} editing={isEditing}>
                 {inp("customer_name")}
               </Field>
-              <Field label="Product" value={currentOrder.product_name ?? "—"} editing={isEditing}>
-                {inp("product_name")}
-              </Field>
+              {isEditing ? (
+                <div className="col-span-2 flex flex-col gap-0.5">
+                  <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide">Products</dt>
+                  <dd className="flex flex-col gap-2">
+                    {lineItems.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Product name"
+                          value={item.name}
+                          onChange={(e) => setLineItems((prev) => prev.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                          className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.qty}
+                          onChange={(e) => setLineItems((prev) => prev.map((x, i) => i === idx ? { ...x, qty: Math.max(1, parseInt(e.target.value) || 1) } : x))}
+                          className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 text-center focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setLineItems((prev) => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev)}
+                          className="flex h-7 w-7 items-center justify-center rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setLineItems((prev) => [...prev, { name: "", qty: 1 }])}
+                      className="flex items-center gap-1.5 self-start px-2 py-1 rounded-md border border-dashed border-slate-300 text-xs text-slate-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                    >
+                      <Plus className="h-3 w-3" /> Add product
+                    </button>
+                  </dd>
+                </div>
+              ) : (
+                <Field label="Product" value={currentOrder.product_name ?? "—"} editing={false}>
+                  {null}
+                </Field>
+              )}
               <Field label="Mode" value={currentOrder.mode ?? "—"} editing={isEditing}>
                 {sel("mode", MODE_OPTIONS)}
               </Field>
-              <Field label="Units" value={currentOrder.units ?? 1} editing={isEditing}>
-                {inp("units", "number")}
-              </Field>
+              {!isEditing && (
+                <Field label="Units" value={currentOrder.units ?? 1} editing={false}>
+                  {null}
+                </Field>
+              )}
             </dl>
           </section>
 
