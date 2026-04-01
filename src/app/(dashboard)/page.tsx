@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { KpiCards } from "@/components/dashboard/kpi-cards"
+import { ChatdaddyStats } from "@/components/dashboard/chatdaddy-stats"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Header } from "@/components/layout/header"
@@ -49,7 +50,12 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Cards */}
-        <KpiCards />
+        <div className="space-y-4">
+          <KpiCards />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <ChatdaddyStats />
+          </div>
+        </div>
 
         {/* Quick Actions */}
         <div>
