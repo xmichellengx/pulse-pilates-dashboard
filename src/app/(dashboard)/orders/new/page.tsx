@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { ArrowLeft, Copy, Save, Loader2, Check, RefreshCw } from "lucide-react"
+import { ArrowLeft, Copy, Save, Loader2, Check, RefreshCw, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 // ── Types ──
@@ -20,6 +20,13 @@ interface Product {
   p4b_t2_myr: number | null
 }
 
+interface LineItem {
+  product_id: string
+  product_name_manual: string
+  units: number
+  unit_price: number
+}
+
 const LEAD_SOURCES = [
   "Google", "Facebook", "Instagram", "TikTok", "XHS",
   "Referral", "Walk In", "Shopee", "Shopify", "Repeat Customer",
@@ -27,27 +34,42 @@ const LEAD_SOURCES = [
 const PAYMENT_TYPES = ["Bank Transfer", "Atome", "Credit Card", "Cash", "TNG", "Other"]
 const STATUSES = ["Pending", "Pending Delivered", "Delivered", "Cancelled", "Returned"]
 
+function emptyLineItem(): LineItem {
+  return { product_id: "", product_name_manual: "", units: 1, unit_price: 0 }
+}
+
 // ── WA order form builder ──
 
-function buildWAText(f: typeof EMPTY_FORM, products: Product[]) {
-  const product = products.find((p) => p.id === f.product_id)
-  const productName = product?.name ?? f.product_name_manual
+function buildWAText(f: typeof EMPTY_FORM, lineItems: LineItem[], products: Product[]) {
   const isRental = f.mode === "Rental"
   const currency = f.market === "SG" ? "SGD" : "RM"
-  const total = isRental
-    ? (Number(f.monthly_rental) || 0) + (Number(f.delivery_fee) || 0) + (Number(f.installation_fee) || 0)
-    : (Number(f.amount) || 0)
+  const deliveryFee = parseFloat(String(f.delivery_fee)) || 0
+  const installationFee = parseFloat(String(f.installation_fee)) || 0
+
+  const productLines = lineItems
+    .map((item) => {
+      const p = products.find((x) => x.id === item.product_id)
+      const name = (p?.name ?? item.product_name_manual) || "Product"
+      return `${item.units}x ${name}`
+    })
+    .join(", ")
+
+  const totalUnits = lineItems.reduce((s, i) => s + i.units, 0)
+  const equipmentTotal = lineItems.reduce((s, i) => s + i.unit_price * i.units, 0)
+  const total = equipmentTotal + deliveryFee + installationFee
 
   if (isRental) {
+    const monthly = parseFloat(String(f.monthly_rental)) || 0
+    const rentalTotal = monthly + deliveryFee + installationFee
     return `To confirm your order:
 Order no: ${f.case_code}
-Units: ${f.units}x ${productName}
+Units: ${productLines}
 Purchase mode: Rental
 Payment:
-1st month rental: ${currency} ${(f.monthly_rental || 0).toLocaleString()}
-Delivery: ${currency} ${(f.delivery_fee || 0).toLocaleString()}
-Installation: ${currency} ${(f.installation_fee || 0).toLocaleString()}
-Total: ${currency} ${total.toLocaleString()}
+1st month rental: ${currency} ${monthly.toLocaleString()}
+Delivery: ${currency} ${deliveryFee.toLocaleString()}
+Installation: ${currency} ${installationFee.toLocaleString()}
+Total: ${currency} ${rentalTotal.toLocaleString()}
 
 Estimated delivery: ${f.delivery_date || "TBC"}
 Location: ${f.location}
@@ -60,17 +82,15 @@ Lead: ${f.lead_source}
 Send to: Sales group, Account group, Outstanding`
   }
 
-  const equipment = (Number(f.amount) || 0) - (Number(f.delivery_fee) || 0) - (Number(f.installation_fee) || 0)
-
   return `To confirm your order:
 Order no: ${f.case_code}
-Units: ${f.units}x ${productName}
+Units: ${productLines}
 Purchase mode: ${f.mode}
 Payment: ${f.payment_type}
-Equipment: ${currency} ${Math.max(0, equipment).toLocaleString()}
-Delivery: ${currency} ${(f.delivery_fee || 0).toLocaleString()}
-Installation: ${currency} ${(f.installation_fee || 0).toLocaleString()}
-Total: ${currency} ${(f.amount || 0).toLocaleString()}
+Equipment: ${currency} ${equipmentTotal.toLocaleString()}
+Delivery: ${currency} ${deliveryFee.toLocaleString()}
+Installation: ${currency} ${installationFee.toLocaleString()}
+Total: ${currency} ${total.toLocaleString()}
 
 Estimated delivery: ${f.delivery_date || "TBC"}
 Location: ${f.location}
@@ -90,12 +110,8 @@ const EMPTY_FORM = {
   customer_name: "",
   phone: "",
   email: "",
-  product_id: "",
-  product_name_manual: "",
-  units: 1,
   mode: "Direct Purchase" as string,
   payment_type: "Bank Transfer",
-  amount: "" as number | string,
   monthly_rental: "" as number | string,
   balance: "" as number | string,
   delivery_fee: 150 as number | string,
@@ -114,6 +130,7 @@ const EMPTY_FORM = {
 export default function NewOrderPage() {
   const router = useRouter()
   const [form, setForm] = useState(EMPTY_FORM)
+  const [lineItems, setLineItems] = useState<LineItem[]>([emptyLineItem()])
   const [products, setProducts] = useState<Product[]>([])
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -136,7 +153,6 @@ export default function NewOrderPage() {
       const r = await fetch("/api/orders/next-code")
       const d = await r.json()
       setNextCodes(d)
-      // Auto-set the case code based on current market
       setForm((prev) => ({
         ...prev,
         case_code: prev.market === "SG" ? d.nextPPAS : d.nextPP,
@@ -148,8 +164,7 @@ export default function NewOrderPage() {
     }
   }
 
-  // When market changes, suggest the right code prefix
-  const prevMarket = form.market
+  // When market changes, suggest the right code prefix + default delivery fee
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
@@ -159,30 +174,49 @@ export default function NewOrderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.market])
 
-  // Auto-fill price when product + market + mode changes
-  useEffect(() => {
-    if (!form.product_id) return
-    const product = products.find((p) => p.id === form.product_id)
-    if (!product) return
-
-    if (form.mode === "Rental") {
-      const rental = product.rental_myr ?? 0
-      setForm((prev) => ({ ...prev, monthly_rental: rental, amount: "" }))
-    } else {
-      const price = form.market === "SG" ? (product.price_sgd ?? 0) : (product.price_myr ?? 0)
-      const delivery = typeof form.delivery_fee === "number" ? form.delivery_fee : parseFloat(String(form.delivery_fee)) || 0
-      const install = typeof form.installation_fee === "number" ? form.installation_fee : parseFloat(String(form.installation_fee)) || 0
-      setForm((prev) => ({ ...prev, amount: price * prev.units + delivery + install }))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.product_id, form.mode, form.market])
-
   function set(key: keyof typeof EMPTY_FORM, value: unknown) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  // ── Line item helpers ──
+
+  function updateLineItem(index: number, patch: Partial<LineItem>) {
+    setLineItems((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], ...patch }
+
+      // If product_id changed, auto-fill unit_price
+      if ("product_id" in patch && patch.product_id) {
+        const p = products.find((x) => x.id === patch.product_id)
+        if (p) {
+          const price = form.market === "SG" ? (p.price_sgd ?? 0) : (p.price_myr ?? 0)
+          next[index].unit_price = price
+        }
+      }
+
+      return next
+    })
+  }
+
+  function addLineItem() {
+    setLineItems((prev) => [...prev, emptyLineItem()])
+  }
+
+  function removeLineItem(index: number) {
+    setLineItems((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  // ── Totals ──
+
+  const deliveryFee = parseFloat(String(form.delivery_fee)) || 0
+  const installationFee = parseFloat(String(form.installation_fee)) || 0
+  const equipmentTotal = lineItems.reduce((s, i) => s + i.unit_price * i.units, 0)
+  const computedTotal = equipmentTotal + deliveryFee + installationFee
+  const isRental = form.mode === "Rental"
+  const currency = form.market === "SG" ? "SGD" : "RM"
+
   async function handleCopyWA() {
-    const text = buildWAText(form, products)
+    const text = buildWAText(form, lineItems, products)
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
@@ -199,18 +233,41 @@ export default function NewOrderPage() {
 
     setSaving(true)
     try {
-      const product = products.find((p) => p.id === form.product_id)
+      // Build combined product name and total units
+      const productNameParts = lineItems.map((item) => {
+        const p = products.find((x) => x.id === item.product_id)
+        return (p?.name ?? item.product_name_manual.trim()) || "Product"
+      })
+      const combinedProductName = productNameParts.filter(Boolean).join(" + ") || null
+      const totalUnits = lineItems.reduce((s, i) => s + i.units, 0)
+
+      // Build remarks prefix for multi-item detail
+      let remarksValue = form.remarks.trim()
+      if (lineItems.length > 1) {
+        const itemsStr = lineItems
+          .map((item, i) => {
+            const p = products.find((x) => x.id === item.product_id)
+            const name = (p?.name ?? item.product_name_manual) || "Product"
+            return `${name} x${item.units}`
+          })
+          .join(", ")
+        const prefix = `Items: ${itemsStr}.`
+        remarksValue = remarksValue ? `${prefix} ${remarksValue}` : prefix
+      }
+
       const payload = {
         case_code: form.case_code.trim().toUpperCase(),
         customer_name: form.customer_name.trim(),
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
-        product_name: (product?.name ?? form.product_name_manual.trim()) || null,
-        units: form.units,
+        product_name: combinedProductName,
+        units: totalUnits,
         mode: form.mode,
         payment_type: form.payment_type || null,
-        amount: form.amount !== "" ? parseFloat(String(form.amount)) : null,
-        monthly_rental: form.monthly_rental !== "" ? parseFloat(String(form.monthly_rental)) : null,
+        amount: isRental ? null : computedTotal,
+        monthly_rental: isRental && form.monthly_rental !== ""
+          ? parseFloat(String(form.monthly_rental))
+          : null,
         balance: form.balance !== "" ? parseFloat(String(form.balance)) : 0,
         delivery_date: form.delivery_date || null,
         location: form.location.trim() || null,
@@ -218,7 +275,7 @@ export default function NewOrderPage() {
         lead_source: form.lead_source || null,
         market: form.market,
         status: form.status,
-        remarks: form.remarks.trim() || null,
+        remarks: remarksValue || null,
       }
 
       const res = await fetch("/api/orders", {
@@ -238,16 +295,11 @@ export default function NewOrderPage() {
     }
   }
 
-  const selectedProduct = products.find((p) => p.id === form.product_id)
-  const isRental = form.mode === "Rental"
-  const currency = form.market === "SG" ? "SGD" : "RM"
-
   const inputCls = "w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder:text-slate-400"
   const selectCls = "w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
   const labelCls = "block text-xs font-semibold text-slate-600 mb-1"
 
-  // Live WA text preview
-  const waText = buildWAText(form, products)
+  const waText = buildWAText(form, lineItems, products)
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto">
@@ -263,7 +315,7 @@ export default function NewOrderPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">New Order</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Fill in details → copy WA form → send to customer → save.</p>
+          <p className="text-sm text-slate-500 mt-0.5">Fill in details &rarr; copy WA form &rarr; send to customer &rarr; save.</p>
         </div>
         {/* Market toggle */}
         <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white shadow-sm">
@@ -313,7 +365,7 @@ export default function NewOrderPage() {
               </button>
             </div>
             <p className="text-xs text-slate-400 mt-1.5">
-              Next: <span className="font-mono text-slate-600">{nextCodes.nextPP}</span> (MY) ·{" "}
+              Next: <span className="font-mono text-slate-600">{nextCodes.nextPP}</span> (MY) &middot;{" "}
               <span className="font-mono text-slate-600">{nextCodes.nextPPAS}</span> (PPAS/SG)
             </p>
           </div>
@@ -337,43 +389,121 @@ export default function NewOrderPage() {
             </div>
           </div>
 
-          {/* Product & Mode */}
+          {/* Line Items */}
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 space-y-3">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Product & Mode</h2>
-
-            <div>
-              <label className={labelCls}>Product</label>
-              <select
-                className={selectCls}
-                value={form.product_id}
-                onChange={(e) => set("product_id", e.target.value)}
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Line Items</h2>
+              <button
+                type="button"
+                onClick={addLineItem}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-medium hover:bg-indigo-100 transition-all"
               >
-                <option value="">Select product...</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              {!form.product_id && (
-                <input
-                  className={inputCls + " mt-1.5"}
-                  placeholder="Or type product name manually..."
-                  value={form.product_name_manual}
-                  onChange={(e) => set("product_name_manual", e.target.value)}
-                />
-              )}
+                <Plus className="h-3.5 w-3.5" />
+                Add Item
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Units</label>
-                <input
-                  className={inputCls}
-                  type="number"
-                  min={1}
-                  value={form.units}
-                  onChange={(e) => set("units", parseInt(e.target.value) || 1)}
-                />
+            <div className="space-y-3">
+              {lineItems.map((item, idx) => (
+                <div key={idx} className="rounded-lg border border-slate-100 bg-slate-50 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500">Item {idx + 1}</span>
+                    {lineItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeLineItem(idx)}
+                        className="h-6 w-6 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Product</label>
+                    <select
+                      className={selectCls}
+                      value={item.product_id}
+                      onChange={(e) => updateLineItem(idx, { product_id: e.target.value, product_name_manual: "" })}
+                    >
+                      <option value="">Select product...</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    {!item.product_id && (
+                      <input
+                        className={inputCls + " mt-1.5"}
+                        placeholder="Or type product name manually..."
+                        value={item.product_name_manual}
+                        onChange={(e) => updateLineItem(idx, { product_name_manual: e.target.value })}
+                      />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={labelCls}>Units</label>
+                      <input
+                        className={inputCls}
+                        type="number"
+                        min={1}
+                        value={item.units}
+                        onChange={(e) => updateLineItem(idx, { units: parseInt(e.target.value) || 1 })}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Unit Price ({currency})</label>
+                      <input
+                        className={inputCls}
+                        type="number"
+                        min={0}
+                        value={item.unit_price}
+                        onChange={(e) => updateLineItem(idx, { unit_price: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-right text-xs text-slate-500">
+                    Subtotal:{" "}
+                    <span className="font-semibold text-slate-700">
+                      {currency} {(item.unit_price * item.units).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Running total */}
+            {!isRental && (
+              <div className="mt-2 pt-3 border-t border-slate-100 space-y-1 text-sm">
+                <div className="flex justify-between text-slate-500">
+                  <span>Equipment</span>
+                  <span>{currency} {equipmentTotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-slate-500">
+                  <span>Delivery</span>
+                  <span>{currency} {deliveryFee.toLocaleString()}</span>
+                </div>
+                {installationFee > 0 && (
+                  <div className="flex justify-between text-slate-500">
+                    <span>Installation</span>
+                    <span>{currency} {installationFee.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-slate-100">
+                  <span>Total</span>
+                  <span>{currency} {computedTotal.toLocaleString()}</span>
+                </div>
               </div>
+            )}
+          </div>
+
+          {/* Mode & Payment */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 space-y-3">
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mode & Payment</h2>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Lead Source</label>
                 <select className={selectCls} value={form.lead_source} onChange={(e) => set("lead_source", e.target.value)}>
@@ -412,37 +542,26 @@ export default function NewOrderPage() {
                 </select>
               </div>
             )}
+
+            {isRental && (
+              <div>
+                <label className={labelCls}>Monthly Rental ({currency})</label>
+                <input
+                  className={inputCls}
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 390"
+                  value={form.monthly_rental}
+                  onChange={(e) => set("monthly_rental", e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Pricing */}
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 space-y-3">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pricing ({currency})</h2>
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fees & Balance ({currency})</h2>
             <div className="grid grid-cols-2 gap-3">
-              {isRental ? (
-                <div className="col-span-2">
-                  <label className={labelCls}>Monthly Rental ({currency})</label>
-                  <input
-                    className={inputCls}
-                    type="number"
-                    min={0}
-                    placeholder={selectedProduct?.rental_myr ? String(selectedProduct.rental_myr) : "e.g. 390"}
-                    value={form.monthly_rental}
-                    onChange={(e) => set("monthly_rental", e.target.value)}
-                  />
-                </div>
-              ) : (
-                <div className="col-span-2">
-                  <label className={labelCls}>Total Amount ({currency})</label>
-                  <input
-                    className={inputCls}
-                    type="number"
-                    min={0}
-                    placeholder="0"
-                    value={form.amount}
-                    onChange={(e) => set("amount", e.target.value)}
-                  />
-                </div>
-              )}
               <div>
                 <label className={labelCls}>Delivery Fee</label>
                 <input className={inputCls} type="number" min={0} value={form.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value)} />
@@ -541,7 +660,7 @@ export default function NewOrderPage() {
             </div>
 
             <p className="text-xs text-slate-400 mt-2 text-center">
-              Copy WA form first → send to customer → save once confirmed
+              Copy WA form first &rarr; send to customer &rarr; save once confirmed
             </p>
           </div>
         </div>

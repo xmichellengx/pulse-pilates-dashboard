@@ -14,366 +14,427 @@ import {
 const styles = StyleSheet.create({
   page: {
     fontFamily: "Helvetica",
-    fontSize: 10,
-    color: "#1e293b",
-    paddingTop: 48,
-    paddingBottom: 64,
+    fontSize: 9,
+    color: "#1a1a1a",
+    paddingTop: 40,
+    paddingBottom: 60,
     paddingHorizontal: 48,
   },
+  // ── Header ──
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 28,
-  },
-  logoBox: {
-    width: 40,
-    height: 40,
-    backgroundColor: "#6366f1",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logoText: {
-    color: "#fff",
-    fontSize: 14,
-    fontFamily: "Helvetica-Bold",
-  },
-  brandName: {
-    fontSize: 16,
-    fontFamily: "Helvetica-Bold",
-    color: "#1e293b",
-    marginTop: 4,
-  },
-  brandSub: {
-    fontSize: 8,
-    color: "#64748b",
-    marginTop: 2,
-  },
-  invoiceTag: {
-    fontSize: 22,
-    fontFamily: "Helvetica-Bold",
-    color: "#1e293b",
-    textAlign: "right",
-  },
-  invoiceNumber: {
-    fontSize: 10,
-    color: "#64748b",
-    textAlign: "right",
-    marginTop: 4,
-  },
-  invoiceDate: {
-    fontSize: 9,
-    color: "#94a3b8",
-    textAlign: "right",
-    marginTop: 2,
-  },
-  statusBadge: {
-    marginTop: 6,
-    backgroundColor: "#dcfce7",
-    borderRadius: 4,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    alignSelf: "flex-end",
-  },
-  statusText: {
-    fontSize: 9,
-    fontFamily: "Helvetica-Bold",
-    color: "#166534",
-    textAlign: "right",
-  },
-  divider: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
     marginBottom: 20,
   },
-  sectionRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 20,
+  logoBlock: {
+    flexDirection: "column",
   },
-  sectionBox: {
+  logoWordPulse: {
+    fontSize: 34,
+    fontFamily: "Helvetica-Bold",
+    color: "#111111",
+    lineHeight: 1,
+  },
+  logoWordSub: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Oblique",
+    color: "#444444",
+    marginTop: 2,
+  },
+  companyBlock: {
     flex: 1,
-    backgroundColor: "#f8fafc",
-    borderRadius: 6,
-    padding: 12,
+    marginLeft: 32,
+    alignItems: "flex-end",
   },
-  sectionLabel: {
-    fontSize: 8,
-    fontFamily: "Helvetica-Bold",
-    color: "#94a3b8",
-    marginBottom: 6,
-  },
-  sectionValue: {
+  companyName: {
     fontSize: 10,
-    color: "#1e293b",
-    lineHeight: 1.6,
-  },
-  sectionValueBold: {
-    fontSize: 11,
     fontFamily: "Helvetica-Bold",
-    color: "#1e293b",
+    color: "#111111",
+    textAlign: "right",
+  },
+  companyDetail: {
+    fontSize: 8,
+    color: "#555555",
+    textAlign: "right",
+    marginTop: 2,
+    lineHeight: 1.5,
+  },
+  // ── Divider ──
+  divider: {
+    borderBottomWidth: 0.75,
+    borderBottomColor: "#cccccc",
+    marginBottom: 14,
+  },
+  // ── Bill to / Bill info row ──
+  billRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+  billToBlock: {
+    flex: 1,
+  },
+  billMetaBlock: {
+    width: 200,
+    alignItems: "flex-end",
+  },
+  billLabel: {
+    fontSize: 8,
+    color: "#666666",
+    marginBottom: 4,
+  },
+  billCustomerName: {
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    color: "#111111",
     marginBottom: 2,
   },
-  table: {
+  billCustomerLine: {
+    fontSize: 9,
+    color: "#333333",
+    marginBottom: 1,
+  },
+  billMetaRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 3,
+  },
+  billMetaKey: {
+    fontSize: 9,
+    color: "#555555",
+    width: 80,
+    textAlign: "right",
+  },
+  billMetaVal: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#111111",
+    marginLeft: 8,
+    width: 90,
+    textAlign: "right",
+  },
+  // ── Title ──
+  docTitle: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: "#111111",
+    textAlign: "center",
     marginBottom: 16,
+    letterSpacing: 2,
+  },
+  // ── Table ──
+  table: {
+    marginBottom: 8,
   },
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#1e293b",
-    borderRadius: 4,
-    paddingVertical: 7,
-    paddingHorizontal: 8,
-    marginBottom: 2,
+    borderTopWidth: 0.75,
+    borderBottomWidth: 0.75,
+    borderColor: "#999999",
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    backgroundColor: "#f5f5f5",
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e5e5",
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
-  colDesc: { flex: 4 },
-  colQty: { flex: 1, textAlign: "center" },
-  colUnit: { flex: 2, textAlign: "right" },
-  colAmount: { flex: 2, textAlign: "right" },
+  colNo: { width: 24, textAlign: "left" },
+  colDesc: { flex: 1 },
+  colQty: { width: 52, textAlign: "center" },
+  colUnit: { width: 90, textAlign: "right" },
+  colAmount: { width: 90, textAlign: "right" },
   thText: {
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
-    color: "#fff",
+    color: "#333333",
   },
   tdText: {
-    fontSize: 10,
-    color: "#334155",
+    fontSize: 9,
+    color: "#333333",
   },
   tdBold: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    color: "#1e293b",
+    color: "#111111",
   },
-  totalsBox: {
-    marginLeft: "auto",
-    width: 220,
+  // ── Totals ──
+  totalsArea: {
+    alignItems: "flex-end",
     marginBottom: 20,
   },
-  totalRow: {
+  totalLine: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 3,
+    justifyContent: "flex-end",
+    marginBottom: 3,
   },
-  totalLabel: {
-    fontSize: 10,
-    color: "#64748b",
+  totalKey: {
+    fontSize: 9,
+    color: "#333333",
+    width: 160,
+    textAlign: "right",
+    paddingRight: 12,
   },
-  totalValue: {
-    fontSize: 10,
-    color: "#1e293b",
-    fontFamily: "Helvetica-Bold",
-  },
-  grandTotalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: "#1e293b",
-    borderRadius: 6,
-    marginTop: 6,
-  },
-  grandTotalLabel: {
-    fontSize: 12,
-    fontFamily: "Helvetica-Bold",
-    color: "#fff",
-  },
-  grandTotalValue: {
-    fontSize: 12,
-    fontFamily: "Helvetica-Bold",
-    color: "#fff",
-  },
-  paymentBox: {
-    backgroundColor: "#f0f9ff",
-    borderRadius: 6,
-    padding: 12,
-    marginBottom: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: "#6366f1",
-  },
-  paymentTitle: {
+  totalVal: {
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    color: "#1e40af",
+    color: "#111111",
+    width: 90,
+    textAlign: "right",
+  },
+  totalDivider: {
+    borderTopWidth: 0.5,
+    borderTopColor: "#aaaaaa",
+    width: 260,
     marginBottom: 4,
+    marginTop: 2,
   },
-  paymentText: {
+  // ── Sections ──
+  sectionTitle: {
     fontSize: 9,
-    color: "#1e293b",
-    lineHeight: 1.6,
+    fontFamily: "Helvetica-Bold",
+    color: "#111111",
+    marginBottom: 4,
+    marginTop: 14,
   },
-  footer: {
-    position: "absolute",
-    bottom: 28,
-    left: 48,
-    right: 48,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-    paddingTop: 8,
+  sectionLine: {
+    fontSize: 9,
+    color: "#333333",
+    marginBottom: 2,
+    lineHeight: 1.4,
   },
-  footerText: {
+  // ── Important notes ──
+  importantBox: {
+    marginTop: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: "#cccccc",
+    paddingTop: 10,
+  },
+  importantTitle: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#111111",
+    marginBottom: 5,
+  },
+  importantItem: {
     fontSize: 8,
-    color: "#94a3b8",
+    color: "#444444",
+    marginBottom: 3,
+    lineHeight: 1.4,
+  },
+  // ── Footer / Signature ──
+  signatureBlock: {
+    marginTop: 20,
+    borderTopWidth: 0.5,
+    borderTopColor: "#cccccc",
+    paddingTop: 10,
+  },
+  signatureText: {
+    fontSize: 9,
+    color: "#333333",
+    marginBottom: 2,
   },
 })
 
-interface InvoiceLineItem {
-  description: string
-  qty: number
-  unit_price: number
-  amount: number
-}
-
-interface InvoicePDFInput {
-  invoice_number: string
-  type: string
+export interface InvoicePDFInput {
+  doc_type: "invoice" | "receipt"
+  bill_number: string
+  bill_date: string
   customer_name: string
   customer_email?: string
-  order_case_code?: string
-  items: InvoiceLineItem[]
-  amount: number
-  currency: string
-  due_date?: string
+  customer_phone?: string
+  customer_location?: string
+  customer_address?: string
+  items: Array<{
+    description: string
+    qty: number
+    unit_price: number
+    amount: number
+  }>
+  total: number
+  deposit: number
+  balance: number
+  delivery_date?: string
+  buying_method?: string
+  issued_by?: string
+}
+
+function fmt(n: number) {
+  return n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function InvoiceDocument(props: InvoicePDFInput) {
   const {
-    invoice_number,
-    type,
+    doc_type,
+    bill_number,
+    bill_date,
     customer_name,
     customer_email,
-    order_case_code,
+    customer_phone,
+    customer_location,
+    customer_address,
     items,
-    amount,
-    currency,
-    due_date,
+    total,
+    deposit,
+    balance,
+    delivery_date,
+    buying_method,
+    issued_by,
   } = props
 
-  const today = new Date().toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-  const dueDateStr =
-    due_date ||
-    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-MY", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })
-
-  const typeLabel =
-    type === "rental" ? "Rental Invoice" : type === "deposit" ? "Deposit Invoice" : "Invoice"
+  const title = doc_type === "receipt" ? "RECEIPT" : "INVOICE"
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header */}
+
+        {/* ── Header ── */}
         <View style={styles.headerRow}>
-          <View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={styles.logoBox}>
-                <Text style={styles.logoText}>PP</Text>
-              </View>
-              <View>
-                <Text style={styles.brandName}>Pulse Pilates</Text>
-                <Text style={styles.brandSub}>pilatesreformer.my</Text>
-              </View>
-            </View>
-            <Text style={{ ...styles.brandSub, marginTop: 8 }}>Malaysia & Singapore</Text>
+          {/* Logo */}
+          <View style={styles.logoBlock}>
+            <Text style={styles.logoWordPulse}>pulse</Text>
+            <Text style={styles.logoWordSub}>pilatesreformer.my</Text>
           </View>
-          <View>
-            <Text style={styles.invoiceTag}>{typeLabel.toUpperCase()}</Text>
-            <Text style={styles.invoiceNumber}>{invoice_number}</Text>
-            <Text style={styles.invoiceDate}>Issue date: {today}</Text>
-            <Text style={styles.invoiceDate}>Due date: {dueDateStr}</Text>
-            {order_case_code && (
-              <Text style={{ ...styles.invoiceDate, marginTop: 4, color: "#6366f1" }}>
-                Ref: {order_case_code}
-              </Text>
-            )}
+
+          {/* Company block */}
+          <View style={styles.companyBlock}>
+            <Text style={styles.companyName}>UTOPIA HOLIDAY SDN BHD (1358713-H)</Text>
+            <Text style={styles.companyDetail}>
+              {"A-30 Level 2 Sentul Point, Puncak Sentul, No. 8 Jalan Sentul Perdana, 51000 Kuala Lumpur"}
+            </Text>
+            <Text style={styles.companyDetail}>
+              {"Email: pilatesreformer.my@gmail.com   Tel: +60 18-929 4693"}
+            </Text>
           </View>
         </View>
 
         <View style={styles.divider} />
 
-        {/* Customer */}
-        <View style={styles.sectionRow}>
-          <View style={styles.sectionBox}>
-            <Text style={styles.sectionLabel}>BILLED TO</Text>
-            <Text style={styles.sectionValueBold}>{customer_name}</Text>
-            {customer_email && (
-              <Text style={styles.sectionValue}>{customer_email}</Text>
+        {/* ── Bill To / Bill Meta ── */}
+        <View style={styles.billRow}>
+          <View style={styles.billToBlock}>
+            <Text style={styles.billLabel}>To:</Text>
+            <Text style={styles.billCustomerName}>{customer_name},</Text>
+            {customer_location && (
+              <Text style={styles.billCustomerLine}>{customer_location},</Text>
+            )}
+            {customer_address && (
+              <Text style={styles.billCustomerLine}>{customer_address},</Text>
+            )}
+            {(customer_email || customer_phone) && (
+              <Text style={styles.billCustomerLine}>
+                {[customer_email, customer_phone].filter(Boolean).join(" | ")}
+              </Text>
             )}
           </View>
-          <View style={styles.sectionBox}>
-            <Text style={styles.sectionLabel}>INVOICE DETAILS</Text>
-            <Text style={styles.sectionValue}>
-              {"Type: " + typeLabel + "\nDue: " + dueDateStr}
-            </Text>
+
+          <View style={styles.billMetaBlock}>
+            <View style={styles.billMetaRow}>
+              <Text style={styles.billMetaKey}>Bill Number :</Text>
+              <Text style={styles.billMetaVal}>{bill_number}</Text>
+            </View>
+            <View style={styles.billMetaRow}>
+              <Text style={styles.billMetaKey}>Bill Date :</Text>
+              <Text style={styles.billMetaVal}>{bill_date}</Text>
+            </View>
           </View>
         </View>
 
-        {/* Items */}
+        {/* ── Document Title ── */}
+        <Text style={styles.docTitle}>{title}</Text>
+
+        {/* ── Items Table ── */}
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <Text style={{ ...styles.thText, ...styles.colDesc }}>DESCRIPTION</Text>
-            <Text style={{ ...styles.thText, ...styles.colQty }}>QTY</Text>
-            <Text style={{ ...styles.thText, ...styles.colUnit }}>UNIT PRICE</Text>
-            <Text style={{ ...styles.thText, ...styles.colAmount }}>AMOUNT</Text>
+            <Text style={{ ...styles.thText, ...styles.colNo }}>Item</Text>
+            <Text style={{ ...styles.thText, ...styles.colDesc }}>Description</Text>
+            <Text style={{ ...styles.thText, ...styles.colQty }}>Quantity</Text>
+            <Text style={{ ...styles.thText, ...styles.colUnit }}>Unit Price (RM)</Text>
+            <Text style={{ ...styles.thText, ...styles.colAmount }}>Amount (RM)</Text>
           </View>
+
           {items.map((item, i) => (
             <View key={i} style={styles.tableRow}>
-              <Text style={{ ...styles.tdBold, ...styles.colDesc }}>{item.description}</Text>
+              <Text style={{ ...styles.tdText, ...styles.colNo }}>{i + 1}.</Text>
+              <Text style={{ ...styles.tdText, ...styles.colDesc }}>{item.description}</Text>
               <Text style={{ ...styles.tdText, ...styles.colQty }}>{item.qty}</Text>
-              <Text style={{ ...styles.tdText, ...styles.colUnit }}>
-                {currency} {item.unit_price.toLocaleString()}
-              </Text>
-              <Text style={{ ...styles.tdBold, ...styles.colAmount }}>
-                {currency} {item.amount.toLocaleString()}
-              </Text>
+              <Text style={{ ...styles.tdText, ...styles.colUnit }}>{fmt(item.unit_price)}</Text>
+              <Text style={{ ...styles.tdBold, ...styles.colAmount }}>{fmt(item.amount)}</Text>
             </View>
           ))}
         </View>
 
-        {/* Total */}
-        <View style={styles.totalsBox}>
-          <View style={styles.grandTotalRow}>
-            <Text style={styles.grandTotalLabel}>TOTAL DUE</Text>
-            <Text style={styles.grandTotalValue}>
-              {currency} {amount.toLocaleString()}
-            </Text>
+        {/* ── Totals ── */}
+        <View style={styles.totalsArea}>
+          <View style={styles.totalDivider} />
+          <View style={styles.totalLine}>
+            <Text style={styles.totalKey}>Total (RM)</Text>
+            <Text style={styles.totalVal}>{fmt(total)}</Text>
+          </View>
+          <View style={styles.totalLine}>
+            <Text style={styles.totalKey}>(-) Deposit (RM)</Text>
+            <Text style={styles.totalVal}>{fmt(deposit)}</Text>
+          </View>
+          <View style={styles.totalDivider} />
+          <View style={styles.totalLine}>
+            <Text style={{ ...styles.totalKey, fontFamily: "Helvetica-Bold" }}>Balance (RM)</Text>
+            <Text style={{ ...styles.totalVal, fontSize: 10 }}>{fmt(balance)}</Text>
           </View>
         </View>
 
-        {/* Payment instructions */}
-        <View style={styles.paymentBox}>
-          <Text style={styles.paymentTitle}>PAYMENT INSTRUCTIONS</Text>
-          <Text style={styles.paymentText}>
-            {
-              "Please transfer payment to:\nBank: Maybank / CIMB\nAccount name: Pulse Pilates Sdn Bhd\n\nInclude your invoice number " +
-              invoice_number +
-              " as reference.\nPayment due by " +
-              dueDateStr +
-              "."
-            }
+        {/* ── Delivery Details ── */}
+        <Text style={styles.sectionTitle}>Delivery Details</Text>
+        <Text style={styles.sectionLine}>
+          {"Delivery Date : " + (delivery_date || "TBC")}
+        </Text>
+        <Text style={styles.sectionLine}>{"Delivery Time : TBC"}</Text>
+
+        {/* ── Payment Details ── */}
+        <Text style={styles.sectionTitle}>Payment Details</Text>
+        <Text style={styles.sectionLine}>
+          {"Buying Method                         : " + (buying_method || "—")}
+        </Text>
+        <Text style={styles.sectionLine}>
+          {"Installment Period (if any)            : N/A"}
+        </Text>
+        <Text style={styles.sectionLine}>
+          {"Installment Amount (if any)            : RM0.00 / monthly"}
+        </Text>
+        <Text style={styles.sectionLine}>
+          {"Monthly Billing Date (if any)          : N/A"}
+        </Text>
+        <Text style={styles.sectionLine}>
+          {"Auto Debit Effective Date (if any)     : N/A"}
+        </Text>
+
+        {/* ── Important ── */}
+        <View style={styles.importantBox}>
+          <Text style={styles.importantTitle}>Important - Please Read</Text>
+          <Text style={styles.importantItem}>
+            {"1. Condominium Delivery : Please ensure all necessary permits for condo access are secured prior to delivery, delivery fee will apply even if the delivery is unsuccessful due to lack of permission to enter."}
+          </Text>
+          <Text style={styles.importantItem}>
+            {"2. Installment Auto Debit : You will be provided with an auto debit link to enroll for installment payments starting from the second month onwards."}
           </Text>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>pilatesreformer.my</Text>
-          <Text style={styles.footerText}>Questions? Contact us at hello@pilatesreformer.my</Text>
-          <Text style={styles.footerText}>{invoice_number}</Text>
+        {/* ── Bank + Signature ── */}
+        <View style={styles.signatureBlock}>
+          <Text style={styles.signatureText}>
+            {"Utopia Holiday Sdn Bhd - CIMB Bank - 8010 343 152"}
+          </Text>
+          <Text style={styles.signatureText}>{"For Pulse Pilates :"}</Text>
+          <Text style={{ ...styles.signatureText, marginTop: 6 }}>{"Issued By"}</Text>
+          <Text style={{ ...styles.signatureText, fontFamily: "Helvetica-Bold" }}>
+            {issued_by || "Aisy"}
+          </Text>
+          <Text style={styles.signatureText}>{"Contact No : 018-929 4693"}</Text>
         </View>
+
       </Page>
     </Document>
   )
@@ -385,11 +446,15 @@ export async function POST(req: NextRequest) {
 
     const pdfBuffer = await renderToBuffer(<InvoiceDocument {...body} />)
 
+    const filename = body.bill_number
+      ? `${body.bill_number}${body.doc_type === "receipt" ? "-receipt" : ""}.pdf`
+      : "invoice.pdf"
+
     return new NextResponse(pdfBuffer as unknown as BodyInit, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${body.invoice_number ?? "invoice"}.pdf"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     })
   } catch (err) {

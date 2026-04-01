@@ -48,6 +48,7 @@ interface OrdersTableProps {
   status: string
   mode: string
   search: string
+  onOrderUpdate?: (updatedOrder: Order) => void
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -141,12 +142,20 @@ export function OrdersTable({
   status,
   mode,
   search,
+  onOrderUpdate,
 }: OrdersTableProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [localOrders, setLocalOrders] = useState<Order[]>(orders)
+
+  function handleOrderUpdate(updatedOrder: Order) {
+    setLocalOrders((prev) => prev.map((o) => o.id === updatedOrder.id ? updatedOrder : o))
+    if (selectedOrder?.id === updatedOrder.id) setSelectedOrder(updatedOrder)
+    onOrderUpdate?.(updatedOrder)
+  }
 
   const totalPages = Math.ceil(total / pageSize)
 
@@ -259,14 +268,14 @@ export function OrdersTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {orders.length === 0 ? (
+              {localOrders.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-400">
                     No orders found for the selected filters.
                   </td>
                 </tr>
               ) : (
-                orders.map((order) => (
+                localOrders.map((order) => (
                   <tr
                     key={order.id}
                     className="hover:bg-slate-50/60 transition-colors cursor-pointer"
@@ -378,7 +387,11 @@ export function OrdersTable({
 
       {/* Detail modal */}
       {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          onUpdate={handleOrderUpdate}
+        />
       )}
     </>
   )
