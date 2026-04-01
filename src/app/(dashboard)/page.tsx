@@ -14,6 +14,12 @@ import {
   Zap,
 } from "lucide-react"
 
+function daysAgo(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString().split("T")[0]
+}
+
 function getGreeting() {
   const hour = new Date().getHours()
   if (hour < 12) return "Good morning"
@@ -67,14 +73,22 @@ export default async function DashboardPage() {
       .order("balance", { ascending: false })
       .limit(10),
 
-    // Rental follow-ups: delivered rentals
+    // Rental follow-ups: rentals near their 1-, 2-, or 3-month mark (±7 days)
+    // 1M mark: 23–37 days since delivery | 2M: 53–67 days | 3M: 83–97 days
     supabase
       .from("orders")
       .select("id, case_code, customer_name, product_name, monthly_rental, delivery_date, payment_date")
       .ilike("mode", "%rental%")
-      .eq("status", "Delivered")
+      .in("status", ["Delivered", "Pending Delivered"])
+      .or(
+        [
+          `and(delivery_date.gte.${daysAgo(37)},delivery_date.lte.${daysAgo(23)})`,
+          `and(delivery_date.gte.${daysAgo(67)},delivery_date.lte.${daysAgo(53)})`,
+          `and(delivery_date.gte.${daysAgo(97)},delivery_date.lte.${daysAgo(83)})`,
+        ].join(",")
+      )
       .order("delivery_date", { ascending: true })
-      .limit(10),
+      .limit(5),
   ])
 
   const pendingDeliveries = pendingRes.data ?? []
@@ -212,26 +226,37 @@ export default async function DashboardPage() {
                 <p className="text-xs text-slate-400">No follow-ups due</p>
               </div>
             ) : (
-              rentalFollowUps.map((item) => (
-                <div key={item.id} className="flex flex-col gap-0.5 text-sm border-l-2 border-blue-400 pl-3 py-0.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-800 truncate">{item.customer_name}</span>
-                    <span className="text-xs text-slate-400 font-mono flex-shrink-0">{item.case_code}</span>
+              rentalFollowUps.map((item) => {
+                const daysElapsed = item.delivery_date
+                  ? Math.floor((Date.now() - new Date(item.delivery_date).getTime()) / (1000 * 60 * 60 * 24))
+                  : 0
+                const monthMark =
+                  daysElapsed >= 83 && daysElapsed <= 97 ? "3M" :
+                  daysElapsed >= 53 && daysElapsed <= 67 ? "2M" :
+                  "1M"
+                return (
+                  <div key={item.id} className="flex flex-col gap-0.5 text-sm border-l-2 border-blue-400 pl-3 py-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-800 truncate">{item.customer_name}</span>
+                      <span className="inline-flex items-center rounded-full bg-blue-50 border border-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                        {monthMark} Due
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500">{item.product_name}</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-blue-600">
+                        {item.monthly_rental ? `RM ${item.monthly_rental}/mo` : "Rental"} &middot; Since {formatShortDate(item.delivery_date)}
+                      </span>
+                      <Link
+                        href="/rentals"
+                        className="text-xs font-medium text-indigo-500 hover:text-indigo-700 transition-colors"
+                      >
+                        Manage
+                      </Link>
+                    </div>
                   </div>
-                  <span className="text-xs text-slate-500">{item.product_name}</span>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-blue-600">
-                      {item.monthly_rental ? `RM ${item.monthly_rental}/mo` : "Rental"} &middot; Since {formatShortDate(item.delivery_date)}
-                    </span>
-                    <Link
-                      href={`/rentals/${item.case_code}`}
-                      className="text-xs font-medium text-indigo-500 hover:text-indigo-700 transition-colors"
-                    >
-                      Offer conversion
-                    </Link>
-                  </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>
