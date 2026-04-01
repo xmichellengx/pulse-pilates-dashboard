@@ -27,12 +27,17 @@ interface LineItem {
   unit_price: number
 }
 
+interface DiscountItem {
+  label: string
+  amount: number
+}
+
 const LEAD_SOURCES = [
   "Google", "Facebook", "Instagram", "TikTok", "XHS",
   "Referral", "Walk In", "Shopee", "Shopify", "Repeat Customer",
 ]
 const PAYMENT_TYPES = ["Bank Transfer", "Atome", "Credit Card", "Cash", "TNG", "Other"]
-const STATUSES = ["Pending", "Pending Delivered", "Delivered", "Cancelled", "Returned"]
+const STATUSES = ["Pending Shipment Arrival", "Pending Delivery", "Delivered", "Cancelled", "Returned"]
 
 function emptyLineItem(): LineItem {
   return { product_id: "", product_name_manual: "", units: 1, unit_price: 0 }
@@ -40,33 +45,39 @@ function emptyLineItem(): LineItem {
 
 // ── WA order form builder ──
 
-function buildWAText(f: typeof EMPTY_FORM, lineItems: LineItem[], products: Product[]) {
+function buildWAText(f: typeof EMPTY_FORM, lineItems: LineItem[], discounts: DiscountItem[], products: Product[]) {
   const isRental = f.mode === "Rental"
   const currency = f.market === "SG" ? "SGD" : "RM"
   const deliveryFee = parseFloat(String(f.delivery_fee)) || 0
   const installationFee = parseFloat(String(f.installation_fee)) || 0
+  const totalDiscount = discounts.reduce((s, d) => s + (d.amount || 0), 0)
 
   const productLines = lineItems
     .map((item) => {
       const p = products.find((x) => x.id === item.product_id)
       const name = (p?.name ?? item.product_name_manual) || "Product"
-      return `${item.units}x ${name}`
+      return `${item.units} ${name}`
     })
     .join(", ")
 
-  const totalUnits = lineItems.reduce((s, i) => s + i.units, 0)
   const equipmentTotal = lineItems.reduce((s, i) => s + i.unit_price * i.units, 0)
-  const total = equipmentTotal + deliveryFee + installationFee
+  const equipmentAfterDiscount = equipmentTotal - totalDiscount
+  const total = equipmentAfterDiscount + deliveryFee + installationFee
+
+  const discountLines = discounts
+    .filter((d) => d.amount > 0)
+    .map((d) => `(-) Discount (${d.label || "Discount"}): -${currency} ${d.amount.toLocaleString()}`)
+    .join("\n")
 
   if (isRental) {
     const monthly = parseFloat(String(f.monthly_rental)) || 0
-    const rentalTotal = monthly + deliveryFee + installationFee
+    const rentalTotal = monthly + deliveryFee + installationFee - totalDiscount
     return `To confirm your order:
 Order no: ${f.case_code}
 Units: ${productLines}
 Purchase mode: Rental
 Payment:
-1st month rental: ${currency} ${monthly.toLocaleString()}
+1st month rental: ${currency} ${monthly.toLocaleString()}${discountLines ? "\n" + discountLines : ""}
 Delivery: ${currency} ${deliveryFee.toLocaleString()}
 Installation: ${currency} ${installationFee.toLocaleString()}
 Total: ${currency} ${rentalTotal.toLocaleString()}
@@ -87,7 +98,7 @@ Order no: ${f.case_code}
 Units: ${productLines}
 Purchase mode: ${f.mode}
 Payment: ${f.payment_type}
-Equipment: ${currency} ${equipmentTotal.toLocaleString()}
+Equipment: ${currency} ${equipmentTotal.toLocaleString()}${discountLines ? "\n" + discountLines : ""}
 Delivery: ${currency} ${deliveryFee.toLocaleString()}
 Installation: ${currency} ${installationFee.toLocaleString()}
 Total: ${currency} ${total.toLocaleString()}
@@ -131,6 +142,7 @@ export default function NewOrderPage() {
   const router = useRouter()
   const [form, setForm] = useState(EMPTY_FORM)
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLineItem()])
+  const [discounts, setDiscounts] = useState<DiscountItem[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -211,12 +223,13 @@ export default function NewOrderPage() {
   const deliveryFee = parseFloat(String(form.delivery_fee)) || 0
   const installationFee = parseFloat(String(form.installation_fee)) || 0
   const equipmentTotal = lineItems.reduce((s, i) => s + i.unit_price * i.units, 0)
-  const computedTotal = equipmentTotal + deliveryFee + installationFee
+  const totalDiscount = discounts.reduce((s, d) => s + (d.amount || 0), 0)
+  const computedTotal = equipmentTotal - totalDiscount + deliveryFee + installationFee
   const isRental = form.mode === "Rental"
   const currency = form.market === "SG" ? "SGD" : "RM"
 
   async function handleCopyWA() {
-    const text = buildWAText(form, lineItems, products)
+    const text = buildWAText(form, lineItems, discounts, products)
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
@@ -241,17 +254,26 @@ export default function NewOrderPage() {
       const combinedProductName = productNameParts.filter(Boolean).join(" + ") || null
       const totalUnits = lineItems.reduce((s, i) => s + i.units, 0)
 
-      // Build remarks prefix for multi-item detail
+      // Build remarks with multi-item and discount info
       let remarksValue = form.remarks.trim()
+      const prefixParts: string[] = []
       if (lineItems.length > 1) {
         const itemsStr = lineItems
-          .map((item, i) => {
+          .map((item) => {
             const p = products.find((x) => x.id === item.product_id)
             const name = (p?.name ?? item.product_name_manual) || "Product"
             return `${name} x${item.units}`
           })
           .join(", ")
-        const prefix = `Items: ${itemsStr}.`
+        prefixParts.push(`Items: ${itemsStr}`)
+      }
+      const activeDiscounts = discounts.filter((d) => d.amount > 0)
+      if (activeDiscounts.length > 0) {
+        const discStr = activeDiscounts.map((d) => `${d.label || "Discount"} -${currency}${d.amount}`).join(", ")
+        prefixParts.push(`Discounts: ${discStr}`)
+      }
+      if (prefixParts.length > 0) {
+        const prefix = prefixParts.join(". ") + "."
         remarksValue = remarksValue ? `${prefix} ${remarksValue}` : prefix
       }
 
@@ -299,7 +321,7 @@ export default function NewOrderPage() {
   const selectCls = "w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
   const labelCls = "block text-xs font-semibold text-slate-600 mb-1"
 
-  const waText = buildWAText(form, lineItems, products)
+  const waText = buildWAText(form, lineItems, discounts, products)
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto">
@@ -481,6 +503,12 @@ export default function NewOrderPage() {
                   <span>Equipment</span>
                   <span>{currency} {equipmentTotal.toLocaleString()}</span>
                 </div>
+                {discounts.filter((d) => d.amount > 0).map((d, i) => (
+                  <div key={i} className="flex justify-between text-red-500">
+                    <span>(-) {d.label || "Discount"}</span>
+                    <span>-{currency} {d.amount.toLocaleString()}</span>
+                  </div>
+                ))}
                 <div className="flex justify-between text-slate-500">
                   <span>Delivery</span>
                   <span>{currency} {deliveryFee.toLocaleString()}</span>
@@ -495,6 +523,54 @@ export default function NewOrderPage() {
                   <span>Total</span>
                   <span>{currency} {computedTotal.toLocaleString()}</span>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Discounts */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Discounts</h2>
+              <button
+                type="button"
+                onClick={() => setDiscounts((prev) => [...prev, { label: "", amount: 0 }])}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-100 bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-all"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Discount
+              </button>
+            </div>
+
+            {discounts.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No discounts — click Add Discount to add one</p>
+            ) : (
+              <div className="space-y-2">
+                {discounts.map((d, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Label (e.g. Michelle Referral)"
+                      value={d.label}
+                      onChange={(e) => setDiscounts((prev) => prev.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                      className={inputCls + " flex-1"}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Amount"
+                      value={d.amount || ""}
+                      onChange={(e) => setDiscounts((prev) => prev.map((x, i) => i === idx ? { ...x, amount: parseFloat(e.target.value) || 0 } : x))}
+                      className={inputCls + " w-28"}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDiscounts((prev) => prev.filter((_, i) => i !== idx))}
+                      className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
