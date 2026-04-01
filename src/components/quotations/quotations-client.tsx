@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
-import { QuotationBuilder } from "@/components/quotations/quotation-builder"
+import { QuotationBuilder, type Product } from "@/components/quotations/quotation-builder"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { formatDate } from "@/lib/utils"
@@ -31,9 +31,10 @@ interface Quotation {
 
 interface QuotationsClientProps {
   initialQuotations: Quotation[]
+  products: Product[]
 }
 
-export function QuotationsClient({ initialQuotations }: QuotationsClientProps) {
+export function QuotationsClient({ initialQuotations, products }: QuotationsClientProps) {
   const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations)
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -87,6 +88,7 @@ export function QuotationsClient({ initialQuotations }: QuotationsClientProps) {
               <p className="text-sm text-slate-500 mt-0.5">Fill in the details below to generate a quote.</p>
             </div>
             <QuotationBuilder
+              products={products}
               onClose={() => setSheetOpen(false)}
               onSaved={handleSaved}
             />

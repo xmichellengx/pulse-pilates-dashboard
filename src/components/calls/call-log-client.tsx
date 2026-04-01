@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -108,22 +107,25 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
   async function onSubmit(values: FormValues) {
     setSubmitting(true)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("calls")
-        .insert({
+      const res = await fetch("/api/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           date: values.date,
           agent: values.agent,
           customer_name: values.customer_name || null,
           phone: values.phone || null,
           outcome: values.outcome,
           notes: values.notes || null,
-        })
-        .select()
-        .single()
+        }),
+      })
 
-      if (error) throw error
+      if (!res.ok) {
+        const { error } = await res.json()
+        throw new Error(error)
+      }
 
+      const data = await res.json()
       setCalls((prev) => [data, ...prev])
       reset({ date: today, agent: values.agent, outcome: "" })
       toast.success("Call logged")

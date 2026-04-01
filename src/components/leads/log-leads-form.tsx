@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Plus, Check } from "lucide-react"
 
 const SOURCES = [
@@ -42,26 +41,24 @@ export function LogLeadsForm() {
     setError(null)
 
     const today = new Date().toISOString().split("T")[0]
-    const supabase = createClient()
 
-    // Upsert: if same date+source+market exists, update count by incrementing
-    const { error: err } = await supabase
-      .from("leads")
-      .upsert(
-        {
-          date: today,
-          source,
-          market,
-          count: countNum,
-          logged_by: "Michelle",
-        },
-        { onConflict: "date,source,market" }
-      )
+    const res = await fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: today,
+        source,
+        market,
+        count: countNum,
+        logged_by: "Michelle",
+      }),
+    })
 
     setLoading(false)
 
-    if (err) {
-      setError(err.message)
+    if (!res.ok) {
+      const json = await res.json()
+      setError(json.error ?? "Failed to log leads")
       return
     }
 

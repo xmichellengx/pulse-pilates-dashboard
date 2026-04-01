@@ -5,7 +5,6 @@ import { useForm, useFieldArray, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,7 +31,7 @@ import {
 
 // ---------- types ----------
 
-interface Product {
+export interface Product {
   id: string
   name: string
   category: string | null
@@ -473,16 +472,17 @@ function LineItemRow({
 // ---------- Main builder component ----------
 
 interface QuotationBuilderProps {
+  products: Product[]
   onClose: () => void
   onSaved: () => void
 }
 
-export function QuotationBuilder({ onClose, onSaved }: QuotationBuilderProps) {
+export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilderProps) {
   const [step, setStep] = useState(0)
-  const [products, setProducts] = useState<Product[]>([])
-  const [loadingProducts, setLoadingProducts] = useState(true)
   const [saving, setSaving] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const loadingProducts = false
   const [copied, setCopied] = useState(false)
   const [savedQuotationNumber, setSavedQuotationNumber] = useState("")
 
@@ -522,20 +522,6 @@ export function QuotationBuilder({ onClose, onSaved }: QuotationBuilderProps) {
   const market = watch("market")
   const pricingTier = watch("pricing_tier")
   const watchedValues = watch()
-
-  // Load products
-  useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from("products")
-      .select("id, name, category, price_myr, price_sgd, p4b_t1_myr, p4b_t2_myr, p4b_t1_sgd, p4b_t2_sgd, rental_myr")
-      .eq("is_active", true)
-      .order("name")
-      .then(({ data }) => {
-        if (data) setProducts(data)
-        setLoadingProducts(false)
-      })
-  }, [])
 
   // Update delivery fee when market changes
   useEffect(() => {
@@ -658,7 +644,6 @@ export function QuotationBuilder({ onClose, onSaved }: QuotationBuilderProps) {
     }
     setSaving(true)
     try {
-      const supabase = createClient()
       const quotationNumber = generateQuotationNumber()
 
       const customisationNotes = lineItems
@@ -671,26 +656,33 @@ export function QuotationBuilder({ onClose, onSaved }: QuotationBuilderProps) {
         })
         .join("; ")
 
-      const { error } = await supabase.from("quotations").insert({
-        quotation_number: quotationNumber,
-        created_by: "Michelle",
-        customer_name: values.customer_name,
-        customer_email: values.email || null,
-        customer_phone: values.phone,
-        market,
-        pricing_tier: values.pricing_tier,
-        items: lineItems,
-        subtotal,
-        delivery_fee: values.delivery_fee,
-        installation_fee: values.installation_fee,
-        total,
-        customisation_notes: customisationNotes || null,
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10),
+      const res = await fetch("/api/quotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quotation_number: quotationNumber,
+          created_by: "Michelle",
+          customer_name: values.customer_name,
+          customer_email: values.email || null,
+          customer_phone: values.phone,
+          market,
+          pricing_tier: values.pricing_tier,
+          items: lineItems,
+          subtotal,
+          delivery_fee: values.delivery_fee,
+          installation_fee: values.installation_fee,
+          total,
+          customisation_notes: customisationNotes || null,
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10),
+        }),
       })
 
-      if (error) throw error
+      if (!res.ok) {
+        const { error } = await res.json()
+        throw new Error(error)
+      }
 
       setSavedQuotationNumber(quotationNumber)
       toast.success(`Quotation ${quotationNumber} saved`)

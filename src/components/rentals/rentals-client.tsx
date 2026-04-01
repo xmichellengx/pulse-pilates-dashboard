@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import {
   Repeat,
   TrendingUp,
@@ -139,11 +138,12 @@ Please arrange payment and we will process your ownership transfer.`
   async function handleMarkConverted() {
     setConverting(true)
     try {
-      const supabase = createClient()
-      await supabase
-        .from("orders")
-        .update({ status: "Delivered", mode: "Conversion" })
-        .eq("id", rental.id)
+      const res = await fetch(`/api/orders/${rental.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Delivered", mode: "Conversion" }),
+      })
+      if (!res.ok) throw new Error("Failed to convert")
       onConverted(rental.id)
       onClose()
     } catch (err) {
@@ -269,11 +269,12 @@ Please confirm and we will coordinate with our delivery team.`
   async function handleMarkReturned() {
     setTerminating(true)
     try {
-      const supabase = createClient()
-      await supabase
-        .from("orders")
-        .update({ status: "Returned" })
-        .eq("id", rental.id)
+      const res = await fetch(`/api/orders/${rental.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Returned" }),
+      })
+      if (!res.ok) throw new Error("Failed to terminate")
       onTerminated(rental.id)
       onClose()
     } catch (err) {
