@@ -12,3 +12,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (error) return Response.json({ error: error.message }, { status: 400 })
   return Response.json(data)
 }
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { error } = await supabase.from("orders").delete().eq("id", id)
+  if (error) return Response.json({ error: error.message }, { status: 400 })
+  return Response.json({ success: true })
+}

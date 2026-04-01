@@ -146,14 +146,14 @@ export default async function DashboardPage() {
           </div>
           <div className="h-4 w-px bg-slate-200 hidden sm:block" />
           <Link
-            href="/quotations/new"
+            href="/quotations"
             className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-indigo-500 text-white text-sm font-semibold shadow-sm transition-all duration-150 hover:bg-indigo-600 hover:shadow-md active:scale-95"
           >
             <FileText className="h-4 w-4" />
             New Quotation
           </Link>
           <Link
-            href="/calls/new"
+            href="/calls"
             className="inline-flex items-center gap-2 h-9 px-4 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium shadow-sm transition-all duration-150 hover:bg-slate-50 hover:border-slate-300 active:scale-95"
           >
             <Phone className="h-4 w-4 text-slate-500" />
@@ -194,13 +194,13 @@ export default async function DashboardPage() {
               pendingDeliveries.map((item) => (
                 <div key={item.id} className="flex flex-col gap-0.5 text-sm border-l-2 border-orange-400 pl-3 py-0.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-800 truncate">{item.customer_name}</span>
-                    <span className="text-xs text-slate-400 font-mono flex-shrink-0">{item.case_code}</span>
+                    <span className="font-semibold text-slate-800 font-mono">{item.case_code ?? "—"}</span>
+                    <span className="text-xs text-orange-600 font-medium flex-shrink-0">
+                      {formatShortDate(item.delivery_date)}
+                    </span>
                   </div>
-                  <span className="text-xs text-slate-500">{item.product_name}</span>
-                  <span className="text-xs font-medium text-orange-600">
-                    {formatShortDate(item.delivery_date)} &middot; {item.location ?? "—"}
-                  </span>
+                  <span className="text-xs text-slate-500">{item.customer_name} · {item.product_name}</span>
+                  <span className="text-xs text-slate-400">{item.location ?? "—"}</span>
                 </div>
               ))
             )}
@@ -237,12 +237,12 @@ export default async function DashboardPage() {
                 return (
                   <div key={item.id} className="flex flex-col gap-0.5 text-sm border-l-2 border-blue-400 pl-3 py-0.5">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-800 truncate">{item.customer_name}</span>
+                      <span className="font-semibold text-slate-800 font-mono">{item.case_code ?? "—"}</span>
                       <span className="inline-flex items-center rounded-full bg-blue-50 border border-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
                         {monthMark} Due
                       </span>
                     </div>
-                    <span className="text-xs text-slate-500">{item.product_name}</span>
+                    <span className="text-xs text-slate-500">{item.customer_name} · {item.product_name}</span>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-blue-600">
                         {item.monthly_rental ? `RM ${item.monthly_rental}/mo` : "Rental"} &middot; Since {formatShortDate(item.delivery_date)}
@@ -288,15 +288,13 @@ export default async function DashboardPage() {
               outstandingBalances.map((item) => (
                 <div key={item.id} className="flex flex-col gap-0.5 text-sm border-l-2 border-red-400 pl-3 py-0.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-800 truncate">{item.customer_name}</span>
+                    <span className="font-semibold text-slate-800 font-mono">{item.case_code ?? "—"}</span>
                     <span className="text-xs font-bold text-red-600 font-mono flex-shrink-0">
                       RM {(item.balance ?? 0).toLocaleString()}
                     </span>
                   </div>
-                  <span className="text-xs text-slate-500">{item.product_name}</span>
-                  <span className="text-xs font-medium text-red-500">
-                    {item.case_code} &middot; Since {formatShortDate(item.payment_date)}
-                  </span>
+                  <span className="text-xs text-slate-500">{item.customer_name} · {item.product_name}</span>
+                  <span className="text-xs text-red-400">Since {formatShortDate(item.payment_date)}</span>
                 </div>
               ))
             )}

@@ -137,7 +137,7 @@ export function AppSidebar() {
         {/* Quick-add CTA */}
         <div className="mt-4 px-1">
           <Link
-            href="/quotations/new"
+            href="/quotations"
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-indigo-600 hover:shadow-md active:scale-95"
           >
             <Plus className="h-4 w-4" />
