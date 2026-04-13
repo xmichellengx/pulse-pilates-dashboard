@@ -17,6 +17,8 @@ import {
   ChevronDown,
   Plus,
   Trash2,
+  AlertTriangle,
+  ShieldAlert,
 } from "lucide-react"
 import type { Order } from "./orders-table"
 import { formatCurrency } from "@/lib/utils"
@@ -27,6 +29,7 @@ interface OrderDetailModalProps {
   order: Order
   onClose: () => void
   onUpdate?: (updatedOrder: Order) => void
+  onDelete?: (orderId: string) => void
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -132,7 +135,7 @@ function serializeLineItems(items: { name: string; qty: number }[]): string {
     .join(" + ")
 }
 
-export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
+export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDetailModalProps) {
   const supabase = createSupabaseClient()
   const [currentOrder, setCurrentOrder] = useState<Order>(order)
   const [editingOrder, setEditingOrder] = useState<Order>(order)
@@ -143,6 +146,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
   const [generatingReceipt, setGeneratingReceipt] = useState(false)
   const [currentUserName, setCurrentUserName] = useState("Aisy")
+
+  // Delete state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deletePassword, setDeletePassword] = useState("")
+  const [deleteError, setDeleteError] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Rental invoice form state
+  const [showRentalForm, setShowRentalForm] = useState(false)
+  const [rentalFields, setRentalFields] = useState({ rental_start_date: "", monthly_billing_date: "", auto_debit_effective_date: "" })
+  const [generatingRental, setGeneratingRental] = useState(false)
+
+  const isRentalOrder = (currentOrder.mode ?? "").toLowerCase().includes("rental")
 
   // Get current user on mount
   useEffect(() => {
@@ -251,18 +267,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  async function handleGeneratePDF(docType: "invoice" | "receipt") {
-    const setLoading = docType === "receipt" ? setGeneratingReceipt : setGeneratingInvoice
+  async function generateInvoicePDF(docType: "invoice" | "receipt" | "rental", extra?: Record<string, unknown>) {
+    const setLoading =
+      docType === "receipt" ? setGeneratingReceipt :
+      docType === "rental" ? setGeneratingRental :
+      setGeneratingInvoice
     setLoading(true)
     try {
       const metaRes = await fetch(`/api/invoices/from-order?order_id=${currentOrder.id}`)
-      if (!metaRes.ok) {
-        const err = await metaRes.json()
-        throw new Error(err.error ?? "Failed to load order data")
-      }
+      if (!metaRes.ok) throw new Error((await metaRes.json()).error ?? "Failed to load order data")
       const payload = await metaRes.json()
       payload.doc_type = docType
       payload.issued_by = currentUserName
+      if (extra) Object.assign(payload, extra)
 
       const pdfRes = await fetch("/api/invoices/pdf", {
         method: "POST",
@@ -275,14 +292,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      const filename = docType === "receipt"
+      a.download = docType === "receipt"
         ? `${payload.bill_number}-receipt.pdf`
-        : `${payload.bill_number}.pdf`
-      a.download = filename
+        : docType === "rental"
+          ? `${payload.bill_number}-rental.pdf`
+          : `${payload.bill_number}.pdf`
       a.click()
       URL.revokeObjectURL(url)
 
-      // Record invoice generation
       await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -297,11 +314,50 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }),
       })
 
-      toast.success(`${docType === "receipt" ? "Receipt" : "Invoice"} downloaded`)
+      const label = docType === "receipt" ? "Receipt" : docType === "rental" ? "Rental Invoice" : "Invoice"
+      toast.success(`${label} downloaded`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setLoading(false)
+    }
+  }
+
+  function handleGeneratePDF(docType: "invoice" | "receipt") {
+    generateInvoicePDF(docType)
+  }
+
+  async function handleGenerateRentalInvoice() {
+    setShowRentalForm(false)
+    await generateInvoicePDF("rental", {
+      rental_start_date: rentalFields.rental_start_date || undefined,
+      monthly_billing_date: rentalFields.monthly_billing_date || undefined,
+      auto_debit_effective_date: rentalFields.auto_debit_effective_date || undefined,
+    })
+  }
+
+  async function handleDelete() {
+    setDeleteError("")
+    setIsDeleting(true)
+    try {
+      const res = await fetch("/api/orders/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: currentOrder.id, password: deletePassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setDeleteError(data.error ?? "Deletion failed")
+        return
+      }
+      toast.success("Order deleted")
+      setShowDeleteDialog(false)
+      onDelete?.(currentOrder.id)
+      onClose()
+    } catch {
+      setDeleteError("Network error. Please try again.")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -386,13 +442,22 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 </button>
               </>
             ) : (
-              <button
-                onClick={startEdit}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                title="Edit order"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
+              <>
+                <button
+                  onClick={() => { setDeletePassword(""); setDeleteError(""); setShowDeleteDialog(true) }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  title="Delete order"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={startEdit}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                  title="Edit order"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
@@ -445,27 +510,33 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                   Generate Documents <span className="text-slate-400 font-normal normal-case">· Issued by {currentUserName}</span>
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => handleGeneratePDF("invoice")}
-                    disabled={generatingInvoice || generatingReceipt}
+                    disabled={generatingInvoice || generatingReceipt || generatingRental}
                     className="flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 transition-all disabled:opacity-60"
                   >
-                    {generatingInvoice
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Download className="h-4 w-4" />}
-                    Generate Invoice
+                    {generatingInvoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Invoice
                   </button>
                   <button
                     onClick={() => handleGeneratePDF("receipt")}
-                    disabled={generatingInvoice || generatingReceipt}
+                    disabled={generatingInvoice || generatingReceipt || generatingRental}
                     className="flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-all disabled:opacity-60"
                   >
-                    {generatingReceipt
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Download className="h-4 w-4" />}
-                    Generate Receipt
+                    {generatingReceipt ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Receipt
                   </button>
+                  {isRentalOrder && (
+                    <button
+                      onClick={() => setShowRentalForm(true)}
+                      disabled={generatingInvoice || generatingReceipt || generatingRental}
+                      className="flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 text-sm font-medium hover:bg-purple-100 transition-all disabled:opacity-60"
+                    >
+                      {generatingRental ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      Rental Invoice
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -712,6 +783,132 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
         </div>
       </div>
+
+      {/* ── Delete confirmation dialog ── */}
+      {showDeleteDialog && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteDialog(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-red-100 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                <ShieldAlert className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Delete Order</h3>
+                <p className="text-xs text-slate-500">{currentOrder.customer_name} · {currentOrder.case_code ?? "No order #"}</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-100 rounded-lg p-3 mb-4">
+              <div className="flex gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-red-700 leading-relaxed">
+                  This will permanently delete the order and cannot be undone. Admin password required.
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-xs font-medium text-slate-600 mb-1">Admin Password</label>
+            <input
+              type="password"
+              value={deletePassword}
+              onChange={(e) => { setDeletePassword(e.target.value); setDeleteError("") }}
+              onKeyDown={(e) => e.key === "Enter" && handleDelete()}
+              placeholder="Enter admin password"
+              autoFocus
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-200 mb-2"
+            />
+            {deleteError && (
+              <p className="text-xs text-red-600 mb-2 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> {deleteError}
+              </p>
+            )}
+
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="flex-1 h-9 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting || !deletePassword}
+                className="flex-1 h-9 rounded-lg bg-red-600 text-sm text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Rental invoice form ── */}
+      {showRentalForm && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowRentalForm(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-purple-100 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+                <FileText className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Rental Invoice Details</h3>
+                <p className="text-xs text-slate-500">{currentOrder.customer_name}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Rental Start Date</label>
+                <input
+                  type="date"
+                  value={rentalFields.rental_start_date}
+                  onChange={(e) => setRentalFields(p => ({ ...p, rental_start_date: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-200"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Monthly Billing Date</label>
+                <input
+                  type="text"
+                  value={rentalFields.monthly_billing_date}
+                  onChange={(e) => setRentalFields(p => ({ ...p, monthly_billing_date: e.target.value }))}
+                  placeholder="e.g. 20th"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-200"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Auto Debit Effective Date</label>
+                <input
+                  type="date"
+                  value={rentalFields.auto_debit_effective_date}
+                  onChange={(e) => setRentalFields(p => ({ ...p, auto_debit_effective_date: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-200"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setShowRentalForm(false)}
+                className="flex-1 h-9 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGenerateRentalInvoice}
+                className="flex-1 h-9 rounded-lg bg-purple-600 text-sm text-white font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Generate PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
