@@ -8,9 +8,27 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer"
+import fs from "fs"
+import path from "path"
 
+// ── Image helpers ──────────────────────────────────────────────────────────────
+function imgB64(filePath: string): string {
+  try {
+    const buf = fs.readFileSync(filePath)
+    const ext = path.extname(filePath).slice(1).toLowerCase()
+    return `data:image/${ext === "jpg" ? "jpeg" : ext};base64,${buf.toString("base64")}`
+  } catch {
+    return ""
+  }
+}
+
+const PUBLIC = path.join(process.cwd(), "public")
+const LOGO_SRC = imgB64(path.join(PUBLIC, "pulse-logo.png"))
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   page: {
     fontFamily: "Helvetica",
@@ -27,20 +45,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 20,
   },
-  logoBlock: {
-    flexDirection: "column",
-  },
-  logoWordPulse: {
-    fontSize: 34,
-    fontFamily: "Helvetica-Bold",
-    color: "#111111",
-    lineHeight: 1,
-  },
-  logoWordSub: {
-    fontSize: 9,
-    fontFamily: "Helvetica-Oblique",
-    color: "#444444",
-    marginTop: 2,
+  logoImg: {
+    width: 110,
+    height: 44,
+    objectFit: "contain",
   },
   companyBlock: {
     flex: 1,
@@ -240,6 +248,7 @@ const styles = StyleSheet.create({
   },
 })
 
+// ── Types ──────────────────────────────────────────────────────────────────────
 export interface InvoicePDFInput {
   doc_type: "invoice" | "receipt"
   bill_number: string
@@ -267,7 +276,8 @@ function fmt(n: number) {
   return n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function InvoiceDocument(props: InvoicePDFInput) {
+// ── Document component ─────────────────────────────────────────────────────────
+function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
   const {
     doc_type,
     bill_number,
@@ -284,6 +294,7 @@ function InvoiceDocument(props: InvoicePDFInput) {
     delivery_date,
     buying_method,
     issued_by,
+    logoSrc,
   } = props
 
   const title = doc_type === "receipt" ? "RECEIPT" : "INVOICE"
@@ -295,10 +306,11 @@ function InvoiceDocument(props: InvoicePDFInput) {
         {/* ── Header ── */}
         <View style={styles.headerRow}>
           {/* Logo */}
-          <View style={styles.logoBlock}>
-            <Text style={styles.logoWordPulse}>pulse</Text>
-            <Text style={styles.logoWordSub}>pilatesreformer.my</Text>
-          </View>
+          {logoSrc ? (
+            <Image src={logoSrc} style={styles.logoImg} />
+          ) : (
+            <Text style={{ fontSize: 28, fontFamily: "Helvetica-Bold" }}>pulse</Text>
+          )}
 
           {/* Company block */}
           <View style={styles.companyBlock}>
@@ -444,7 +456,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as InvoicePDFInput
 
-    const pdfBuffer = await renderToBuffer(<InvoiceDocument {...body} />)
+    const pdfBuffer = await renderToBuffer(
+      <InvoiceDocument {...body} logoSrc={LOGO_SRC} />
+    )
 
     const filename = body.bill_number
       ? `${body.bill_number}${body.doc_type === "receipt" ? "-receipt" : ""}.pdf`
