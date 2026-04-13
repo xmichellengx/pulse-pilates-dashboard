@@ -56,18 +56,18 @@ const s = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     marginBottom: 12,
   },
   logo: {
-    width: 160,
-    height: 80,
-    objectFit: "contain",
+    width: 100,
+    height: 100,
   },
   headerRight: {
     alignItems: "flex-end",
     flex: 1,
     paddingLeft: 16,
+    justifyContent: "center",
   },
   quotationRefLabel: {
     fontSize: 8,
@@ -89,17 +89,17 @@ const s = StyleSheet.create({
     textAlign: "right",
   },
   companyName: {
-    fontSize: 8,
+    fontSize: 11,
     fontFamily: "Helvetica-Bold",
     color: "#000",
     textAlign: "right",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   companyDetail: {
-    fontSize: 7.5,
-    color: "#333",
+    fontSize: 8.5,
+    color: "#444",
     textAlign: "right",
-    lineHeight: 1.5,
+    lineHeight: 1.6,
   },
 
   // Title

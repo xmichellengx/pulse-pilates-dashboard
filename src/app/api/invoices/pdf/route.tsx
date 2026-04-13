@@ -42,31 +42,31 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
+    alignItems: "center",
+    marginBottom: 24,
   },
   logoImg: {
-    width: 160,
-    height: 80,
-    objectFit: "contain",
+    width: 100,
+    height: 100,
   },
   companyBlock: {
     flex: 1,
     marginLeft: 32,
     alignItems: "flex-end",
+    justifyContent: "center",
   },
   companyName: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: "Helvetica-Bold",
     color: "#111111",
     textAlign: "right",
+    marginBottom: 4,
   },
   companyDetail: {
-    fontSize: 8,
-    color: "#555555",
+    fontSize: 8.5,
+    color: "#444444",
     textAlign: "right",
-    marginTop: 2,
-    lineHeight: 1.5,
+    lineHeight: 1.6,
   },
   // ── Divider ──
   divider: {

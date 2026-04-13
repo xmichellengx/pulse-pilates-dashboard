@@ -51,7 +51,7 @@ import {
 const invStyles = StyleSheet.create({
   page: { fontFamily: "Helvetica", fontSize: 9, color: "#1a1a1a", paddingTop: 40, paddingBottom: 60, paddingHorizontal: 48 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
-  logoImg: { width: 160, height: 80, objectFit: "contain" },
+  logoImg: { width: 100, height: 100 },
   companyBlock: { flex: 1, marginLeft: 32, alignItems: "flex-end" },
   companyName: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#111111", textAlign: "right" },
   companyDetail: { fontSize: 8, color: "#555555", textAlign: "right", marginTop: 2, lineHeight: 1.5 },
@@ -210,11 +210,11 @@ function InvoiceDoc() {
 // ─── Quotation ─────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   page: { fontFamily: "Helvetica", fontSize: 9, color: "#222", paddingTop: 36, paddingBottom: 60, paddingHorizontal: 44, backgroundColor: "#fff" },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 },
-  logoImg: { width: 160, height: 80, objectFit: "contain" },
-  companyBlock: { flex: 1, marginLeft: 32, alignItems: "flex-end" },
-  companyName: { fontSize: 9, fontFamily: "Helvetica-Bold", color: "#111", textAlign: "right" },
-  companyDetail: { fontSize: 7.5, color: "#555", textAlign: "right", marginTop: 1.5, lineHeight: 1.5 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  logoImg: { width: 100, height: 100 },
+  companyBlock: { flex: 1, marginLeft: 32, alignItems: "flex-end", justifyContent: "center" },
+  companyName: { fontSize: 11, fontFamily: "Helvetica-Bold", color: "#111", textAlign: "right", marginBottom: 4 },
+  companyDetail: { fontSize: 8.5, color: "#444", textAlign: "right", lineHeight: 1.6 },
   metaBoxRow: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginBottom: 10 },
   metaBox: { borderWidth: 0.75, borderColor: "#999", paddingHorizontal: 10, paddingVertical: 5, minWidth: 130 },
   metaBoxLabel: { fontSize: 7, color: "#777", marginBottom: 2 },
