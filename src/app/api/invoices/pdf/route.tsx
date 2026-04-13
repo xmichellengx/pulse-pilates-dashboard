@@ -46,8 +46,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   logoImg: {
-    width: 110,
-    height: 44,
+    width: 160,
+    height: 80,
     objectFit: "contain",
   },
   companyBlock: {

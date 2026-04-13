@@ -60,8 +60,8 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   logo: {
-    width: 90,
-    height: 60,
+    width: 160,
+    height: 80,
     objectFit: "contain",
   },
   headerRight: {
