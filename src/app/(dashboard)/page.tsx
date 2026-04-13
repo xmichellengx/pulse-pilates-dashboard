@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { KpiCards } from "@/components/dashboard/kpi-cards"
 import { ChatdaddyStats } from "@/components/dashboard/chatdaddy-stats"
+import { Greeting } from "@/components/dashboard/greeting"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/supabase/server"
 import {
@@ -20,21 +21,6 @@ function daysAgo(n: number): string {
   return d.toISOString().split("T")[0]
 }
 
-function getGreeting() {
-  const hour = new Date().getHours()
-  if (hour < 12) return "Good morning"
-  if (hour < 17) return "Good afternoon"
-  return "Good evening"
-}
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-}
 
 function formatShortDate(dateStr: string | null) {
   if (!dateStr) return "TBD"
@@ -50,9 +36,6 @@ function formatShortDate(dateStr: string | null) {
 }
 
 export default async function DashboardPage() {
-  const greeting = getGreeting()
-  const today = formatDate(new Date())
-
   const supabase = await createClient()
 
   const [pendingRes, balancesRes, rentalsRes] = await Promise.all([
@@ -104,15 +87,7 @@ export default async function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <SidebarTrigger className="text-slate-400 hover:text-slate-600 mt-1 -ml-1" />
-          <div>
-            <p className="text-xs font-medium text-slate-400 mb-0.5">{today}</p>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              {greeting}, Michelle
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Here&apos;s what&apos;s happening with Pulse Pilates today.
-            </p>
-          </div>
+          <Greeting name="Michelle" />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <button
