@@ -35,8 +35,17 @@ function formatShortDate(dateStr: string | null) {
   }
 }
 
+const EMAIL_TO_NAME: Record<string, string> = {
+  "michelleleng.ng@gmail.com": "Michelle",
+  "aisypulsepilates@gmail.com": "Aisy",
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const userEmail = user?.email ?? ""
+  const userName = EMAIL_TO_NAME[userEmail] ?? userEmail.split("@")[0] ?? "there"
 
   const [pendingRes, balancesRes, rentalsRes] = await Promise.all([
     // Pending deliveries
@@ -87,7 +96,7 @@ export default async function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <SidebarTrigger className="text-slate-400 hover:text-slate-600 mt-1 -ml-1" />
-          <Greeting name="Michelle" />
+          <Greeting name={userName} />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <button
@@ -99,9 +108,9 @@ export default async function DashboardPage() {
           </button>
           <button className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 shadow-sm hover:bg-slate-50 transition-all duration-150">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-xs font-semibold text-white">
-              M
+              {userName[0]?.toUpperCase() ?? "?"}
             </span>
-            <span className="text-sm font-medium text-slate-700">Michelle</span>
+            <span className="text-sm font-medium text-slate-700">{userName}</span>
           </button>
         </div>
       </div>

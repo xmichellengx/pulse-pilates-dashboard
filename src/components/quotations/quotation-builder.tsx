@@ -507,6 +507,11 @@ interface QuotationBuilderProps {
   initialData?: QuotationInitialData
 }
 
+const EMAIL_TO_NAME: Record<string, string> = {
+  "michelleleng.ng@gmail.com": "Michelle",
+  "aisypulsepilates@gmail.com": "Aisy",
+}
+
 export function QuotationBuilder({ products, onClose, onSaved, initialData }: QuotationBuilderProps) {
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -514,6 +519,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const loadingProducts = false
   const [copied, setCopied] = useState(false)
+  const [currentUserName, setCurrentUserName] = useState("Michelle")
   const [savedQuotationNumber, setSavedQuotationNumber] = useState(initialData?.quotation_number ?? "")
   const [discounts, setDiscounts] = useState<DiscountItem[]>([])
 
@@ -579,6 +585,17 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
   useEffect(() => {
     populateFromInitialData()
   }, [populateFromInitialData])
+
+  // Fetch current user for attribution
+  useEffect(() => {
+    import("@/lib/supabase/client").then(({ createClient: makeClient }) => {
+      const supabase = makeClient()
+      supabase.auth.getUser().then(({ data }) => {
+        const email = (data.user?.email) ?? ""
+        setCurrentUserName(EMAIL_TO_NAME[email] ?? email.split("@")[0] ?? "Michelle")
+      })
+    })
+  }, [])
 
   const market = watch("market")
   const pricingTier = watch("pricing_tier")
@@ -729,7 +746,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
       const payload = {
         ...(isEditing ? { id: initialData!.id } : {}),
         quotation_number: quotationNumber,
-        created_by: "Michelle",
+        created_by: currentUserName,
         customer_name: values.customer_name,
         customer_email: values.email || null,
         customer_phone: values.phone,

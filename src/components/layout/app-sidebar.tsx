@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useState, useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import {
@@ -73,10 +74,23 @@ const navItems = [
   },
 ]
 
+const EMAIL_TO_NAME: Record<string, string> = {
+  "michelleleng.ng@gmail.com": "Michelle",
+  "aisypulsepilates@gmail.com": "Aisy",
+}
+
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const [userName, setUserName] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email ?? ""
+      setUserName(EMAIL_TO_NAME[email] ?? email.split("@")[0] ?? "User")
+    })
+  }, [supabase])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -163,12 +177,14 @@ export function AppSidebar() {
                 <SidebarMenuButton className="h-10 w-full rounded-lg px-3 text-sm font-medium text-slate-400 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all duration-150">
                   <Avatar className="h-6 w-6 flex-shrink-0">
                     <AvatarFallback className="text-xs bg-indigo-500 text-white font-semibold">
-                      M
+                      {userName ? userName[0].toUpperCase() : "…"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col text-left min-w-0 flex-1">
-                    <span className="text-sm font-medium leading-tight text-sidebar-foreground">Michelle</span>
-                    <span className="text-xs leading-tight" style={{ color: "var(--sidebar-muted-foreground)" }}>Owner</span>
+                    <span className="text-sm font-medium leading-tight text-sidebar-foreground">{userName ?? "…"}</span>
+                    <span className="text-xs leading-tight" style={{ color: "var(--sidebar-muted-foreground)" }}>
+                      {userName === "Michelle" ? "Owner" : userName === "Aisy" ? "Sales" : ""}
+                    </span>
                   </div>
                   <ChevronUp className="h-3.5 w-3.5 flex-shrink-0 opacity-50" />
                 </SidebarMenuButton>

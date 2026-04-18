@@ -1,8 +1,14 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Check } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+
+const EMAIL_TO_NAME: Record<string, string> = {
+  "michelleleng.ng@gmail.com": "Michelle",
+  "aisypulsepilates@gmail.com": "Aisy",
+}
 
 const SOURCES = [
   "Google",
@@ -28,6 +34,15 @@ export function LogLeadsForm() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loggedBy, setLoggedBy] = useState("Michelle")
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email ?? ""
+      setLoggedBy(EMAIL_TO_NAME[email] ?? email.split("@")[0] ?? "Michelle")
+    })
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,7 +65,7 @@ export function LogLeadsForm() {
         source,
         market,
         count: countNum,
-        logged_by: "Michelle",
+        logged_by: loggedBy,
       }),
     })
 
