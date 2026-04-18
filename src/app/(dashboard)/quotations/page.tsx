@@ -8,7 +8,7 @@ export default async function QuotationsPage() {
   const [{ data: quotations }, { data: products }] = await Promise.all([
     supabase
       .from("quotations")
-      .select("id, quotation_number, customer_name, customer_phone, market, total, items, email_sent, converted_to_order, created_at, expires_at")
+      .select("id, quotation_number, customer_name, customer_email, customer_phone, market, pricing_tier, total, subtotal, delivery_fee, installation_fee, items, email_sent, converted_to_order, created_at, expires_at")
       .order("created_at", { ascending: false })
       .limit(50),
     supabase

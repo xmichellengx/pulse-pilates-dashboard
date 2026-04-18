@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { useForm, useFieldArray, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -487,24 +487,41 @@ function LineItemRow({
 
 // ---------- Main builder component ----------
 
+export interface QuotationInitialData {
+  id: string
+  quotation_number: string
+  customer_name: string
+  customer_email?: string | null
+  customer_phone: string
+  market: "MY" | "SG"
+  pricing_tier?: string | null
+  delivery_fee?: number | null
+  installation_fee?: number | null
+  items?: unknown[]
+}
+
 interface QuotationBuilderProps {
   products: Product[]
   onClose: () => void
   onSaved: () => void
+  initialData?: QuotationInitialData
 }
 
-export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilderProps) {
+export function QuotationBuilder({ products, onClose, onSaved, initialData }: QuotationBuilderProps) {
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const loadingProducts = false
   const [copied, setCopied] = useState(false)
-  const [savedQuotationNumber, setSavedQuotationNumber] = useState("")
+  const [savedQuotationNumber, setSavedQuotationNumber] = useState(initialData?.quotation_number ?? "")
   const [discounts, setDiscounts] = useState<DiscountItem[]>([])
 
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    {
+  const [lineItems, setLineItems] = useState<LineItem[]>(() => {
+    if (initialData?.items && Array.isArray(initialData.items) && initialData.items.length > 0) {
+      return initialData.items as LineItem[]
+    }
+    return [{
       product_id: "",
       product_name: "",
       qty: 1,
@@ -515,33 +532,65 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
       logo_engraving: false,
       engraving_notes: "",
       customisation_surcharge: 0,
-    },
-  ])
+    }]
+  })
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    reset,
     control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      market: "MY",
-      pricing_tier: "retail",
+      market: (initialData?.market as "MY" | "SG") ?? "MY",
+      pricing_tier: (initialData?.pricing_tier as "retail" | "p4b_t2" | "p4b_t1") ?? "retail",
       lead_source: "",
-      delivery_fee: 150,
-      installation_fee: 0,
+      delivery_fee: initialData?.delivery_fee ?? 150,
+      installation_fee: initialData?.installation_fee ?? 0,
+      customer_name: initialData?.customer_name ?? "",
+      phone: initialData?.customer_phone ?? "",
+      email: initialData?.customer_email ?? "",
     },
   })
+
+  // Pre-fill form when editing
+  const populateFromInitialData = useCallback(() => {
+    if (!initialData) return
+    reset({
+      market: (initialData.market as "MY" | "SG") ?? "MY",
+      pricing_tier: (initialData.pricing_tier as "retail" | "p4b_t2" | "p4b_t1") ?? "retail",
+      lead_source: "",
+      delivery_fee: initialData.delivery_fee ?? 150,
+      installation_fee: initialData.installation_fee ?? 0,
+      customer_name: initialData.customer_name ?? "",
+      phone: initialData.customer_phone ?? "",
+      email: initialData.customer_email ?? "",
+    })
+    if (initialData.items && Array.isArray(initialData.items) && initialData.items.length > 0) {
+      setLineItems(initialData.items as LineItem[])
+    }
+    setSavedQuotationNumber(initialData.quotation_number)
+  }, [initialData, reset])
+
+  useEffect(() => {
+    populateFromInitialData()
+  }, [populateFromInitialData])
 
   const market = watch("market")
   const pricingTier = watch("pricing_tier")
   const watchedValues = watch()
 
-  // Update delivery fee when market changes
+  // Update delivery fee when market changes (skip on initial render when editing)
+  const isFirstRender = React.useRef(true)
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     setValue("delivery_fee", defaultDeliveryFee(market))
   }, [market, setValue])
 
@@ -664,7 +713,8 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
     }
     setSaving(true)
     try {
-      const quotationNumber = generateQuotationNumber()
+      const isEditing = !!initialData?.id
+      const quotationNumber = isEditing ? initialData!.quotation_number : generateQuotationNumber()
 
       const customisationNotes = lineItems
         .filter((i) => i.custom_colour || i.logo_engraving)
@@ -676,27 +726,30 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
         })
         .join("; ")
 
+      const payload = {
+        ...(isEditing ? { id: initialData!.id } : {}),
+        quotation_number: quotationNumber,
+        created_by: "Michelle",
+        customer_name: values.customer_name,
+        customer_email: values.email || null,
+        customer_phone: values.phone,
+        market,
+        pricing_tier: values.pricing_tier,
+        items: lineItems,
+        subtotal,
+        delivery_fee: values.delivery_fee,
+        installation_fee: values.installation_fee,
+        total,
+        customisation_notes: customisationNotes || null,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
+      }
+
       const res = await fetch("/api/quotations", {
-        method: "POST",
+        method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          quotation_number: quotationNumber,
-          created_by: "Michelle",
-          customer_name: values.customer_name,
-          customer_email: values.email || null,
-          customer_phone: values.phone,
-          market,
-          pricing_tier: values.pricing_tier,
-          items: lineItems,
-          subtotal,
-          delivery_fee: values.delivery_fee,
-          installation_fee: values.installation_fee,
-          total,
-          customisation_notes: customisationNotes || null,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .slice(0, 10),
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -705,7 +758,7 @@ export function QuotationBuilder({ products, onClose, onSaved }: QuotationBuilde
       }
 
       setSavedQuotationNumber(quotationNumber)
-      toast.success(`Quotation ${quotationNumber} saved`)
+      toast.success(isEditing ? `Quotation ${quotationNumber} updated` : `Quotation ${quotationNumber} saved`)
       onSaved()
     } catch (err) {
       console.error(err)
