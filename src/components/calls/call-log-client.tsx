@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select"
 import { formatDate } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { Phone, Loader2, Filter, TrendingUp, Calendar, CheckCircle2 } from "lucide-react"
+import { Phone, Loader2, Filter, TrendingUp, Calendar, CheckCircle2, Pencil, Check, X } from "lucide-react"
 
 // ---- types ----
 
@@ -46,7 +46,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-const OUTCOMES = ["Quoted", "Followed Up", "Closed", "No Answer", "Callback"]
+const OUTCOMES = ["Quoted", "Followed Up", "Closed", "No Answer", "Callback", "Lukewarm", "Not Interested", "Sabah/Sarawak", "Class", "Others"]
 
 const OUTCOME_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   Closed: { bg: "bg-green-50", text: "text-green-700", border: "border-green-100" },
@@ -54,6 +54,11 @@ const OUTCOME_COLORS: Record<string, { bg: string; text: string; border: string 
   "Followed Up": { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-100" },
   "No Answer": { bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200" },
   Callback: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-100" },
+  Lukewarm: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-100" },
+  "Not Interested": { bg: "bg-red-50", text: "text-red-600", border: "border-red-100" },
+  "Sabah/Sarawak": { bg: "bg-teal-50", text: "text-teal-700", border: "border-teal-100" },
+  Class: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-100" },
+  Others: { bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200" },
 }
 
 interface CallLogClientProps {
@@ -65,6 +70,25 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
   const [submitting, setSubmitting] = useState(false)
   const [filterDate, setFilterDate] = useState("")
   const [filterAgent, setFilterAgent] = useState("all")
+  const [editingNotes, setEditingNotes] = useState<string | null>(null) // call id being edited
+  const [notesValue, setNotesValue] = useState("")
+
+  async function saveNotes(callId: string) {
+    try {
+      const res = await fetch("/api/calls", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: callId, notes: notesValue || null }),
+      })
+      if (!res.ok) throw new Error()
+      setCalls((prev) => prev.map((c) => c.id === callId ? { ...c, notes: notesValue || null } : c))
+      toast.success("Notes updated")
+    } catch {
+      toast.error("Failed to update notes")
+    } finally {
+      setEditingNotes(null)
+    }
+  }
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -359,8 +383,30 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-slate-500 text-xs hidden lg:table-cell max-w-[200px] truncate">
-                        {call.notes || "—"}
+                      <td className="px-4 py-3 text-slate-500 text-xs hidden lg:table-cell max-w-[220px]">
+                        {editingNotes === call.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              value={notesValue}
+                              onChange={(e) => setNotesValue(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") saveNotes(call.id); if (e.key === "Escape") setEditingNotes(null) }}
+                              className="flex-1 min-w-0 rounded border border-indigo-300 px-2 py-0.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            />
+                            <button onClick={() => saveNotes(call.id)} className="text-green-600 hover:text-green-700 flex-shrink-0"><Check className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => setEditingNotes(null)} className="text-slate-400 hover:text-slate-600 flex-shrink-0"><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 group">
+                            <span className="truncate">{call.notes || <span className="text-slate-300">—</span>}</span>
+                            <button
+                              onClick={() => { setEditingNotes(call.id); setNotesValue(call.notes ?? "") }}
+                              className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-indigo-500 transition-opacity flex-shrink-0"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         {call.order_id ? (

@@ -35,6 +35,7 @@ export function LogLeadsForm() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loggedBy, setLoggedBy] = useState("Michelle")
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
 
   useEffect(() => {
     const supabase = createClient()
@@ -55,13 +56,11 @@ export function LogLeadsForm() {
     setLoading(true)
     setError(null)
 
-    const today = new Date().toISOString().split("T")[0]
-
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        date: today,
+        date,
         source,
         market,
         count: countNum,
@@ -91,6 +90,17 @@ export function LogLeadsForm() {
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
       <h2 className="text-sm font-semibold text-slate-800 mb-4">Log Today&apos;s Leads</h2>
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
+        {/* Date */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-slate-500">Date</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-9 px-3 text-sm rounded-lg border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+        </div>
+
         {/* Source */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-slate-500">Source</label>

@@ -77,7 +77,7 @@ const LEAD_SOURCE_OPTIONS = [
 ]
 
 const MARKET_OPTIONS = ["MY", "SG", "ID", "JB"]
-const PAYMENT_TYPE_OPTIONS = ["Full Payment", "Booking fee", "1st Month Rental", "Installment", "Deposit"]
+const PAYMENT_TYPE_OPTIONS = ["Full Payment", "Booking fee", "1st Month Rental", "Installment", "Deposit", "Conversion"]
 const PAYEX_STATUS_OPTIONS = ["Done", "Pending", "Failed", ""]
 
 const EMAIL_TO_NAME: Record<string, string> = {
@@ -228,6 +228,8 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
           invoice_sent: editingOrder.invoice_sent,
           payex_status: editingOrder.payex_status,
           remarks: editingOrder.remarks,
+          warranty_start_date: editingOrder.warranty_start_date,
+          warranty_end_date: editingOrder.warranty_end_date,
         }),
       })
       const data = await res.json()
@@ -756,6 +758,47 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                 </select>
               </Field>
             </dl>
+          </section>
+
+          {/* Warranty */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="h-4 w-4 text-slate-400" />
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Warranty Period</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-slate-400 mb-1">Start Date</p>
+                {isEditing ? (
+                  <input
+                    type="date"
+                    value={editingOrder.warranty_start_date ?? ""}
+                    onChange={(e) => setEditingOrder((p) => ({ ...p, warranty_start_date: e.target.value || null }))}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                  />
+                ) : (
+                  <p className="text-sm text-slate-700">{currentOrder.warranty_start_date ? formatDisplayDate(currentOrder.warranty_start_date) : <span className="text-slate-400 italic">Not set</span>}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 mb-1">End Date</p>
+                {isEditing ? (
+                  <input
+                    type="date"
+                    value={editingOrder.warranty_end_date ?? ""}
+                    onChange={(e) => setEditingOrder((p) => ({ ...p, warranty_end_date: e.target.value || null }))}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                  />
+                ) : (
+                  <p className="text-sm text-slate-700">{currentOrder.warranty_end_date ? formatDisplayDate(currentOrder.warranty_end_date) : <span className="text-slate-400 italic">Not set</span>}</p>
+                )}
+              </div>
+            </div>
+            {currentOrder.warranty_start_date && currentOrder.warranty_end_date && (
+              <p className={`text-xs mt-2 font-medium ${new Date(currentOrder.warranty_end_date) >= new Date() ? "text-green-600" : "text-red-500"}`}>
+                {new Date(currentOrder.warranty_end_date) >= new Date() ? "✓ Under warranty" : "✗ Warranty expired"}
+              </p>
+            )}
           </section>
 
           {/* Remarks */}

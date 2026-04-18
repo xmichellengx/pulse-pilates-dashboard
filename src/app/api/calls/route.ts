@@ -11,3 +11,11 @@ export async function POST(req: Request) {
   if (error) return Response.json({ error: error.message }, { status: 400 })
   return Response.json(data)
 }
+
+export async function PATCH(req: Request) {
+  const { id, ...updates } = await req.json()
+  if (!id) return Response.json({ error: "id required" }, { status: 400 })
+  const { data, error } = await supabase.from("calls").update(updates).eq("id", id).select().single()
+  if (error) return Response.json({ error: error.message }, { status: 400 })
+  return Response.json(data)
+}

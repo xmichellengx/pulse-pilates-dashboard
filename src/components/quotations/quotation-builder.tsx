@@ -93,6 +93,7 @@ const LEAD_SOURCES = [
   "Instagram",
   "TikTok",
   "XHS",
+  "SGS – Carousell/Facebook",
   "Referral",
   "Walk In",
   "Shopee",
@@ -274,7 +275,7 @@ function LineItemRow({
 }: LineItemRowProps) {
   const currency = market === "SG" ? "SGD" : "RM"
   const selectedProduct = products.find((p) => p.id === item.product_id)
-  const canRent = !!selectedProduct?.rental_myr
+  const canRent = !!selectedProduct
 
   const lineSubtotal =
     item.unit_price * item.qty + item.customisation_surcharge
@@ -292,18 +293,27 @@ function LineItemRow({
   }
 
   function handleModeChange(mode: "direct" | "cc_installment" | "rental") {
-    if (mode === "rental" && selectedProduct?.rental_myr) {
-      onChange(index, { purchase_mode: mode, unit_price: selectedProduct.rental_myr })
+    if (mode === "rental") {
+      // Use preset rental price if available, otherwise 0 (user enters manually)
+      onChange(index, { purchase_mode: mode, unit_price: selectedProduct?.rental_myr ?? 0 })
     } else if (selectedProduct) {
       const unitPrice = getUnitPrice(selectedProduct, market, pricingTier)
       onChange(index, { purchase_mode: mode, unit_price: unitPrice })
     }
   }
 
+  function getCustomisationPrices(): { colour: number; logo: number } {
+    if (pricingTier === "p4b_t1") return { colour: 0, logo: 0 } // T1 customisation is free
+    if (market === "SG") return { colour: 150, logo: 175 }       // SGD pricing
+    if (pricingTier === "p4b_t2") return { colour: 100, logo: 150 } // T2 MYR
+    return { colour: 300, logo: 350 }                             // Retail / B2C MYR
+  }
+
   function recalcCustomisation(updates: Partial<LineItem>) {
     const colour = updates.custom_colour ?? item.custom_colour
     const logo = updates.logo_engraving ?? item.logo_engraving
-    const surcharge = (colour ? 300 : 0) + (logo ? 200 : 0)
+    const prices = getCustomisationPrices()
+    const surcharge = (colour ? prices.colour : 0) + (logo ? prices.logo : 0)
     onChange(index, { ...updates, customisation_surcharge: surcharge })
   }
 
@@ -419,7 +429,7 @@ function LineItemRow({
                 <span className="text-sm text-slate-700">
                   Colour customisation{" "}
                   <span className="text-xs text-indigo-600 font-medium">
-                    (+RM 300)
+                    {pricingTier === "p4b_t1" ? "(Free for T1)" : `(+${currency} ${getCustomisationPrices().colour})`}
                   </span>
                 </span>
                 {item.custom_colour && (
@@ -448,7 +458,7 @@ function LineItemRow({
                 <span className="text-sm text-slate-700">
                   Logo / engraving{" "}
                   <span className="text-xs text-indigo-600 font-medium">
-                    (+RM 200)
+                    {pricingTier === "p4b_t1" ? "(Free for T1)" : `(+${currency} ${getCustomisationPrices().logo})`}
                   </span>
                 </span>
                 {item.logo_engraving && (
@@ -1052,10 +1062,28 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
             </div>
 
             <div className="space-y-1">
-              <Label className="text-sm font-medium text-slate-700">Estimated Delivery Date</Label>
+              <Label className="text-sm font-medium text-slate-700">Estimated Delivery</Label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {["4–6 working weeks", "TBC"].map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setValue("estimated_delivery", opt)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all",
+                      watchedValues.estimated_delivery === opt
+                        ? "bg-indigo-500 text-white border-indigo-500"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
+                    )}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
               <Input
-                type="date"
+                type="text"
                 {...register("estimated_delivery")}
+                placeholder="Or enter a specific date / note..."
                 className="h-9"
               />
             </div>
@@ -1225,6 +1253,46 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
                 <span>{currency} {total.toLocaleString()}</span>
               </div>
             </div>
+
+            {/* Rental deposit info */}
+            {isRentalMode && lineItems[0]?.unit_price > 0 && (
+              <div className="rounded-lg border border-purple-100 bg-purple-50 p-4 space-y-1.5">
+                <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">Rental Deposit</p>
+                {(["p4b_t1", "p4b_t2"] as const).includes(watchedValues.pricing_tier as "p4b_t1" | "p4b_t2") ? (
+                  <>
+                    <div className="flex justify-between text-sm text-purple-800">
+                      <span>Monthly rental</span>
+                      <span>{currency} {lineItems[0].unit_price.toLocaleString()}/mo</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-semibold text-purple-900 pt-1 border-t border-purple-200">
+                      <span>Deposit ({watchedValues.pricing_tier === "p4b_t1" ? "4 months" : "2 months"})</span>
+                      <span>{currency} {(lineItems[0].unit_price * (watchedValues.pricing_tier === "p4b_t1" ? 4 : 2)).toLocaleString()}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-purple-600">Deposit terms apply per agreement</p>
+                )}
+              </div>
+            )}
+
+            {/* Booking fee breakdown (for direct purchase) */}
+            {!isRentalMode && total > 0 && (
+              <div className="rounded-lg border border-amber-100 bg-amber-50 p-4 space-y-1.5">
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Booking Fee Breakdown</p>
+                <div className="flex justify-between text-sm text-amber-800">
+                  <span>Grand Total</span>
+                  <span>{currency} {total.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm text-amber-800">
+                  <span>Booking Fee (60%)</span>
+                  <span>{currency} {Math.round(total * 0.6).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold text-amber-900 pt-1 border-t border-amber-200">
+                  <span>Balance (40%)</span>
+                  <span>{currency} {Math.round(total * 0.4).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
 
             {/* Delivery info */}
             {watchedValues.delivery_location && (

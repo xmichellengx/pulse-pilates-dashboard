@@ -36,6 +36,8 @@ export type Order = {
   invoice_sent: boolean | null
   payex_status: string | null
   remarks: string | null
+  warranty_start_date: string | null
+  warranty_end_date: string | null
   created_at: string
 }
 
