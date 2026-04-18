@@ -38,6 +38,7 @@ interface DiscountItem {
 
 export interface Product {
   id: string
+  sku_code: string
   name: string
   category: string | null
   price_myr: number | null
@@ -333,10 +334,19 @@ function LineItemRow({
             className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
           >
             <option value="">Select product...</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
+            {Object.entries(
+              products.reduce((acc, p) => {
+                const cat = p.category ?? "Other"
+                if (!acc[cat]) acc[cat] = []
+                acc[cat].push(p)
+                return acc
+              }, {} as Record<string, typeof products>)
+            ).map(([cat, items]) => (
+              <optgroup key={cat} label={cat}>
+                {items.map((p) => (
+                  <option key={p.id} value={p.id}>[{p.sku_code}] {p.name}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>

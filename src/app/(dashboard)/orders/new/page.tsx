@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 interface Product {
   id: string
+  sku_code: string
   name: string
   category: string | null
   price_myr: number | null
@@ -23,6 +24,7 @@ interface Product {
 interface LineItem {
   product_id: string
   product_name_manual: string
+  colour: string
   units: number
   unit_price: number
 }
@@ -40,7 +42,7 @@ const PAYMENT_TYPES = ["Bank Transfer", "Atome", "Credit Card", "Cash", "TNG", "
 const STATUSES = ["Pending Shipment Arrival", "Pending Delivery", "Delivered", "Cancelled", "Returned"]
 
 function emptyLineItem(): LineItem {
-  return { product_id: "", product_name_manual: "", units: 1, unit_price: 0 }
+  return { product_id: "", product_name_manual: "", colour: "", units: 1, unit_price: 0 }
 }
 
 // ── WA order form builder ──
@@ -246,10 +248,11 @@ export default function NewOrderPage() {
 
     setSaving(true)
     try {
-      // Build combined product name and total units
+      // Build combined product name (with colour) and total units
       const productNameParts = lineItems.map((item) => {
         const p = products.find((x) => x.id === item.product_id)
-        return (p?.name ?? item.product_name_manual.trim()) || "Product"
+        const base = (p?.name ?? item.product_name_manual.trim()) || "Product"
+        return item.colour.trim() ? `${base} (${item.colour.trim()})` : base
       })
       const combinedProductName = productNameParts.filter(Boolean).join(" + ") || null
       const totalUnits = lineItems.reduce((s, i) => s + i.units, 0)
@@ -261,7 +264,8 @@ export default function NewOrderPage() {
         const itemsStr = lineItems
           .map((item) => {
             const p = products.find((x) => x.id === item.product_id)
-            const name = (p?.name ?? item.product_name_manual) || "Product"
+            const base = (p?.name ?? item.product_name_manual) || "Product"
+            const name = item.colour.trim() ? `${base} (${item.colour.trim()})` : base
             return `${name} x${item.units}`
           })
           .join(", ")
@@ -442,15 +446,30 @@ export default function NewOrderPage() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>Product</label>
+                    <label className={labelCls}>Product (SKU)</label>
                     <select
                       className={selectCls}
                       value={item.product_id}
-                      onChange={(e) => updateLineItem(idx, { product_id: e.target.value, product_name_manual: "" })}
+                      onChange={(e) => {
+                        const p = products.find((x) => x.id === e.target.value)
+                        const price = currency === "SGD" ? (p?.price_sgd ?? p?.price_myr ?? 0) : (p?.price_myr ?? 0)
+                        updateLineItem(idx, { product_id: e.target.value, product_name_manual: "", unit_price: price ?? 0 })
+                      }}
                     >
                       <option value="">Select product...</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
+                      {Object.entries(
+                        products.reduce((acc, p) => {
+                          const cat = p.category ?? "Other"
+                          if (!acc[cat]) acc[cat] = []
+                          acc[cat].push(p)
+                          return acc
+                        }, {} as Record<string, typeof products>)
+                      ).map(([cat, items]) => (
+                        <optgroup key={cat} label={cat}>
+                          {items.map((p) => (
+                            <option key={p.id} value={p.id}>[{p.sku_code}] {p.name}</option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                     {!item.product_id && (
@@ -461,6 +480,16 @@ export default function NewOrderPage() {
                         onChange={(e) => updateLineItem(idx, { product_name_manual: e.target.value })}
                       />
                     )}
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Colour / Variant</label>
+                    <input
+                      className={inputCls}
+                      placeholder="e.g. Grey, Black, Custom Colour"
+                      value={item.colour}
+                      onChange={(e) => updateLineItem(idx, { colour: e.target.value })}
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">

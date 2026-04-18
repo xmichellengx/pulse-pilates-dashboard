@@ -8,8 +8,9 @@ const supabase = createClient(
 export async function GET() {
   const { data, error } = await supabase
     .from("products")
-    .select("id, name, category, price_myr, price_sgd, rental_myr, p4b_t1_myr, p4b_t2_myr")
+    .select("id, sku_code, name, category, price_myr, price_sgd, rental_myr, p4b_t1_myr, p4b_t2_myr")
     .eq("is_active", true)
+    .order("category")
     .order("name")
 
   if (error) return Response.json({ error: error.message }, { status: 400 })

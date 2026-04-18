@@ -13,9 +13,9 @@ export default async function QuotationsPage() {
       .limit(50),
     supabase
       .from("products")
-      .select("id, name, category, price_myr, price_sgd, p4b_t1_myr, p4b_t2_myr, p4b_t1_sgd, p4b_t2_sgd, rental_myr")
+      .select("id, sku_code, name, category, price_myr, price_sgd, p4b_t1_myr, p4b_t2_myr, p4b_t1_sgd, p4b_t2_sgd, rental_myr")
       .eq("is_active", true)
-      .order("name"),
+      .order("category").order("name"),
   ])
 
   return (
