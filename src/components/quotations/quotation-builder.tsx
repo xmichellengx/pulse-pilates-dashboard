@@ -538,8 +538,8 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
   const [copied, setCopied] = useState(false)
   const [currentUserName, setCurrentUserName] = useState("Michelle")
   const [savedQuotationNumber, setSavedQuotationNumber] = useState(initialData?.quotation_number ?? "")
-  const [discounts, setDiscounts] = useState<DiscountItem[]>([])
-  const [additionalCharges, setAdditionalCharges] = useState<DiscountItem[]>([])
+  const [discounts, setDiscounts] = useState<DiscountItem[]>(() => initialData?.discounts ?? [])
+  const [additionalCharges, setAdditionalCharges] = useState<DiscountItem[]>(() => initialData?.additional_charges ?? [])
 
   const [lineItems, setLineItems] = useState<LineItem[]>(() => {
     if (initialData?.items && Array.isArray(initialData.items) && initialData.items.length > 0) {
@@ -638,8 +638,13 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
     setValue("delivery_fee", defaultDeliveryFee(market))
   }, [market, setValue])
 
-  // Update installation fee when items change
+  // Update installation fee when items change (skip first render — preserves saved value when editing)
+  const isFirstLineItemRender = React.useRef(true)
   useEffect(() => {
+    if (isFirstLineItemRender.current) {
+      isFirstLineItemRender.current = false
+      return
+    }
     const fee = calcInstallFee(lineItems)
     setValue("installation_fee", fee)
   }, [lineItems, setValue])
