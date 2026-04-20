@@ -506,6 +506,7 @@ export interface QuotationInitialData {
   customer_phone: string
   market: "MY" | "SG"
   pricing_tier?: string | null
+  lead_source?: string | null
   delivery_fee?: number | null
   installation_fee?: number | null
   items?: unknown[]
@@ -581,7 +582,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
     reset({
       market: (initialData.market as "MY" | "SG") ?? "MY",
       pricing_tier: (initialData.pricing_tier as "retail" | "p4b_t2" | "p4b_t1") ?? "retail",
-      lead_source: "",
+      lead_source: initialData.lead_source ?? "",
       delivery_fee: initialData.delivery_fee ?? 150,
       installation_fee: initialData.installation_fee ?? 0,
       customer_name: initialData.customer_name ?? "",
@@ -766,6 +767,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
         customer_phone: values.phone,
         market,
         pricing_tier: values.pricing_tier,
+        lead_source: values.lead_source || null,
         items: lineItems,
         subtotal,
         delivery_fee: values.delivery_fee,
