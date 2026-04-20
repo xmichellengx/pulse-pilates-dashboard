@@ -20,6 +20,7 @@ import {
   Loader2,
   Download,
   ShoppingCart,
+  Send,
 } from "lucide-react"
 
 interface LineItem {
@@ -75,6 +76,7 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
   const [deleting, setDeleting] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [converting, setConverting] = useState(false)
+  const [markingSent, setMarkingSent] = useState(false)
 
   async function refreshList() {
     const supabase = createClient()
@@ -194,6 +196,22 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
     }
   }
 
+  async function handleMarkSent(q: Quotation) {
+    setMarkingSent(true)
+    try {
+      const supabase = createClient()
+      const newValue = !q.email_sent
+      await supabase.from("quotations").update({ email_sent: newValue }).eq("id", q.id)
+      setQuotations((prev) => prev.map((x) => x.id === q.id ? { ...x, email_sent: newValue } : x))
+      setViewModal((prev) => prev ? { ...prev, email_sent: newValue } : null)
+      toast.success(newValue ? "Marked as Sent to Customer" : "Marked as Active")
+    } catch {
+      toast.error("Failed to update")
+    } finally {
+      setMarkingSent(false)
+    }
+  }
+
   const currency = (market: string) => (market === "SG" ? "SGD" : "RM")
 
   return (
@@ -255,9 +273,11 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
           onDelete={() => handleDelete(viewModal)}
           onGeneratePdf={() => handleGeneratePdf(viewModal)}
           onConvertToOrder={() => handleConvertToOrder(viewModal)}
+          onMarkSent={() => handleMarkSent(viewModal)}
           deleting={deleting}
           generatingPdf={generatingPdf}
           converting={converting}
+          markingSent={markingSent}
         />
       )}
 
@@ -347,12 +367,14 @@ interface QuotationDetailModalProps {
   onDelete: () => void
   onGeneratePdf: () => void
   onConvertToOrder: () => void
+  onMarkSent: () => void
   deleting: boolean
   generatingPdf: boolean
   converting: boolean
+  markingSent: boolean
 }
 
-function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelete, onGeneratePdf, onConvertToOrder, deleting, generatingPdf, converting }: QuotationDetailModalProps) {
+function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelete, onGeneratePdf, onConvertToOrder, onMarkSent, deleting, generatingPdf, converting, markingSent }: QuotationDetailModalProps) {
   const items = (Array.isArray(q.items) ? q.items : []) as LineItem[]
   const validItems = items.filter((i) => i.product_id)
   const isExpired = q.expires_at && new Date(q.expires_at) < new Date()
@@ -548,7 +570,7 @@ function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelet
 
         {/* Footer actions */}
         <div className="sticky bottom-0 px-6 py-4 bg-white border-t border-slate-100 space-y-2">
-          {/* Top row: PDF + Edit */}
+          {/* Row 1: PDF + Mark Sent */}
           <div className="flex gap-2">
             <button
               onClick={onGeneratePdf}
@@ -559,14 +581,27 @@ function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelet
               Download PDF
             </button>
             <button
-              onClick={onEdit}
-              className="flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-colors"
+              onClick={onMarkSent}
+              disabled={markingSent}
+              className={`flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg border text-sm font-semibold transition-colors disabled:opacity-60 ${
+                q.email_sent
+                  ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              }`}
             >
-              <Pencil className="h-3.5 w-3.5" />
-              Edit Quotation
+              {markingSent ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              {q.email_sent ? "Unmark Sent" : "Mark as Sent"}
             </button>
           </div>
-          {/* Bottom row: Convert + Delete */}
+          {/* Row 2: Edit */}
+          <button
+            onClick={onEdit}
+            className="w-full inline-flex items-center justify-center gap-2 h-9 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-colors"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit Quotation
+          </button>
+          {/* Row 3: Convert + Delete */}
           <div className="flex gap-2">
             {!q.converted_to_order && (
               <button
