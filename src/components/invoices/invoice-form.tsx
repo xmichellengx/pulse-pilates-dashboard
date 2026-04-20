@@ -56,6 +56,9 @@ export interface InvoiceInitialData {
   customer_name: string
   customer_email?: string | null
   amount?: number | null
+  currency?: string | null
+  line_items?: LineItem[] | null
+  order_case_code?: string | null
   sent_at?: string | null
 }
 
@@ -66,9 +69,9 @@ interface InvoiceFormProps {
 }
 
 export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps) {
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    { description: "", qty: 1, unit_price: 0, amount: 0 },
-  ])
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    () => initialData?.line_items?.length ? initialData.line_items : [{ description: "", qty: 1, unit_price: 0, amount: 0 }]
+  )
   const [saving, setSaving] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
@@ -86,10 +89,11 @@ export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps)
     resolver: zodResolver(schema),
     defaultValues: {
       type: initialData?.type ?? "purchase",
-      currency: "RM",
+      currency: (initialData?.currency as "RM" | "SGD") ?? "RM",
       amount: initialData?.amount ?? 0,
       customer_name: initialData?.customer_name ?? "",
       customer_email: initialData?.customer_email ?? "",
+      order_case_code: initialData?.order_case_code ?? "",
     },
   })
 
@@ -190,18 +194,22 @@ export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps)
   async function handleSave(values: FormValues) {
     setSaving(true)
     try {
+      const invoicePayload = {
+        type: values.type,
+        customer_name: values.customer_name,
+        customer_email: values.customer_email || null,
+        order_case_code: values.order_case_code || null,
+        currency: values.currency,
+        line_items: lineItems.filter((i) => i.description),
+        amount: values.amount,
+        sent_at: markedSent ? (initialData?.sent_at ?? new Date().toISOString()) : null,
+      }
+
       if (isEditing) {
         const res = await fetch("/api/invoices", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: initialData!.id,
-            type: values.type,
-            customer_name: values.customer_name,
-            customer_email: values.customer_email || null,
-            amount: values.amount,
-            sent_at: markedSent ? (initialData!.sent_at ?? new Date().toISOString()) : null,
-          }),
+          body: JSON.stringify({ id: initialData!.id, ...invoicePayload }),
         })
         if (!res.ok) {
           const { error } = await res.json()
@@ -214,11 +222,7 @@ export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps)
 
         const { error } = await supabase.from("invoices").insert({
           invoice_number: invoiceNumber,
-          type: values.type,
-          customer_name: values.customer_name,
-          customer_email: values.customer_email || null,
-          amount: values.amount,
-          sent_at: markedSent ? new Date().toISOString() : null,
+          ...invoicePayload,
         })
 
         if (error) throw error

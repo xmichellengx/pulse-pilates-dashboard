@@ -638,16 +638,6 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
     setValue("delivery_fee", defaultDeliveryFee(market))
   }, [market, setValue])
 
-  // Update installation fee when items change (skip first render — preserves saved value when editing)
-  const isFirstLineItemRender = React.useRef(true)
-  useEffect(() => {
-    if (isFirstLineItemRender.current) {
-      isFirstLineItemRender.current = false
-      return
-    }
-    const fee = calcInstallFee(lineItems)
-    setValue("installation_fee", fee)
-  }, [lineItems, setValue])
 
   // Update unit prices when market/tier changes
   useEffect(() => {
@@ -670,7 +660,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
   )
   const totalDiscount = discounts.reduce((s, d) => s + (d.amount || 0), 0)
   const totalAdditional = additionalCharges.reduce((s, c) => s + (c.amount || 0), 0)
-  const total = subtotal + watchedValues.delivery_fee + watchedValues.installation_fee - totalDiscount + totalAdditional
+  const total = subtotal + (watchedValues.delivery_fee || 0) + (watchedValues.installation_fee || 0) - totalDiscount + totalAdditional
   const isRentalMode = lineItems.length === 1 && lineItems[0].purchase_mode === "rental"
 
   function addItem() {
@@ -692,13 +682,21 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
   }
 
   function removeItem(index: number) {
-    setLineItems((prev) => prev.filter((_, i) => i !== index))
+    setLineItems((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      setValue("installation_fee", calcInstallFee(next))
+      return next
+    })
   }
 
   function updateItem(index: number, updated: Partial<LineItem>) {
-    setLineItems((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, ...updated } : item))
-    )
+    setLineItems((prev) => {
+      const next = prev.map((item, i) => (i === index ? { ...item, ...updated } : item))
+      if ("product_id" in updated || "qty" in updated || "purchase_mode" in updated) {
+        setValue("installation_fee", calcInstallFee(next))
+      }
+      return next
+    })
   }
 
   async function handleCopyWA() {

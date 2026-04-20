@@ -7,7 +7,7 @@ export default async function InvoicesPage() {
 
   const { data: invoices } = await supabase
     .from("invoices")
-    .select("id, invoice_number, type, customer_name, customer_email, amount, pdf_url, sent_at, created_at, order_id")
+    .select("id, invoice_number, type, customer_name, customer_email, amount, currency, line_items, order_case_code, pdf_url, sent_at, created_at, order_id")
     .order("created_at", { ascending: false })
     .limit(50)
 

@@ -11,6 +11,13 @@ import {
   Plus, Receipt, Trash2, Mail, CheckCircle, X, Edit2, FileText, Loader2,
 } from "lucide-react"
 
+interface LineItem {
+  description: string
+  qty: number
+  unit_price: number
+  amount: number
+}
+
 interface Invoice {
   id: string
   invoice_number: string
@@ -18,6 +25,9 @@ interface Invoice {
   customer_name: string
   customer_email: string | null
   amount: number
+  currency: string | null
+  line_items: LineItem[] | null
+  order_case_code: string | null
   pdf_url: string | null
   sent_at: string | null
   created_at: string
@@ -67,9 +77,10 @@ function InvoiceDetailModal({
         type: invoice.type,
         customer_name: invoice.customer_name,
         customer_email: invoice.customer_email,
-        items: [],
+        order_case_code: invoice.order_case_code,
+        items: invoice.line_items ?? [],
         amount: invoice.amount,
-        currency: "RM",
+        currency: invoice.currency ?? "RM",
       }
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",
@@ -159,11 +170,29 @@ function InvoiceDetailModal({
 
           {/* Amount */}
           <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-4 text-center">
-            <p className="text-xs text-indigo-500 font-medium uppercase tracking-wide mb-1">Amount</p>
+            <p className="text-xs text-indigo-500 font-medium uppercase tracking-wide mb-1">Total Amount</p>
             <p className="text-3xl font-bold text-indigo-900">
-              {invoice.amount ? `RM ${invoice.amount.toLocaleString()}` : "—"}
+              {invoice.amount ? `${invoice.currency ?? "RM"} ${invoice.amount.toLocaleString()}` : "—"}
             </p>
           </div>
+
+          {/* Line items */}
+          {invoice.line_items && invoice.line_items.length > 0 && (
+            <div className="rounded-lg border border-slate-100 bg-white overflow-hidden">
+              <p className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">Line Items</p>
+              <div className="divide-y divide-slate-50">
+                {invoice.line_items.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between px-4 py-2 text-sm">
+                    <div>
+                      <span className="text-slate-800">{item.description || "—"}</span>
+                      <span className="text-slate-400 text-xs ml-2">× {item.qty}</span>
+                    </div>
+                    <span className="text-slate-700 font-medium">{invoice.currency ?? "RM"} {item.amount.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Meta */}
           <div className="rounded-lg border border-slate-100 bg-slate-50 p-4 space-y-2 text-sm">
@@ -171,6 +200,12 @@ function InvoiceDetailModal({
               <span className="text-slate-500">Created</span>
               <span className="text-slate-800 font-medium">{formatDate(invoice.created_at)}</span>
             </div>
+            {invoice.order_case_code && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Case Code</span>
+                <span className="font-mono text-xs text-slate-700 font-semibold">{invoice.order_case_code}</span>
+              </div>
+            )}
             {invoice.order_id && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Order ID</span>
@@ -239,7 +274,7 @@ export function InvoicesClient({ initialInvoices }: InvoicesClientProps) {
     const supabase = createClient()
     const { data } = await supabase
       .from("invoices")
-      .select("id, invoice_number, type, customer_name, customer_email, amount, pdf_url, sent_at, created_at, order_id")
+      .select("id, invoice_number, type, customer_name, customer_email, amount, currency, line_items, order_case_code, pdf_url, sent_at, created_at, order_id")
       .order("created_at", { ascending: false })
       .limit(50)
     if (data) setInvoices(data)
@@ -288,6 +323,9 @@ export function InvoicesClient({ initialInvoices }: InvoicesClientProps) {
         customer_name: editingInvoice.customer_name,
         customer_email: editingInvoice.customer_email,
         amount: editingInvoice.amount,
+        currency: editingInvoice.currency,
+        line_items: editingInvoice.line_items,
+        order_case_code: editingInvoice.order_case_code,
         sent_at: editingInvoice.sent_at,
       }
     : undefined
