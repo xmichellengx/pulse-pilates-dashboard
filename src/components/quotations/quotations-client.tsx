@@ -547,6 +547,18 @@ function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelet
                     <span className="font-medium text-slate-700">{currency} {q.subtotal.toLocaleString()}</span>
                   </div>
                 )}
+                {Array.isArray(q.discounts) && q.discounts.filter(d => d.amount > 0).map((d, i) => (
+                  <div key={i} className="flex justify-between px-4 py-2.5 text-sm">
+                    <span className="text-red-500">(-) {d.label || "Discount"}</span>
+                    <span className="font-medium text-red-500">-{currency} {d.amount.toLocaleString()}</span>
+                  </div>
+                ))}
+                {Array.isArray(q.additional_charges) && q.additional_charges.filter(c => c.amount > 0).map((c, i) => (
+                  <div key={i} className="flex justify-between px-4 py-2.5 text-sm">
+                    <span className="text-emerald-600">(+) {c.label || "Additional charge"}</span>
+                    <span className="font-medium text-emerald-600">+{currency} {c.amount.toLocaleString()}</span>
+                  </div>
+                ))}
                 {q.delivery_fee != null && (
                   <div className="flex justify-between px-4 py-2.5 text-sm">
                     <span className="text-slate-500">Delivery</span>
@@ -566,6 +578,47 @@ function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelet
               </div>
             </div>
           </section>
+
+          {/* Delivery info */}
+          {(q.delivery_location || q.estimated_delivery || q.remarks) && (
+            <>
+              <div className="border-t border-slate-100" />
+              <section>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Delivery & Notes</p>
+                <div className="space-y-2 text-sm">
+                  {q.delivery_location && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Location</span>
+                      <span className="font-medium text-slate-800">{q.delivery_location}</span>
+                    </div>
+                  )}
+                  {q.estimated_delivery && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Est. Delivery</span>
+                      <span className="font-medium text-slate-800">{q.estimated_delivery}</span>
+                    </div>
+                  )}
+                  {q.remarks && (
+                    <div className="pt-1">
+                      <p className="text-slate-500 mb-1">Remarks</p>
+                      <p className="text-slate-800 bg-slate-50 rounded-lg px-3 py-2 text-xs leading-relaxed">{q.remarks}</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* Lead source */}
+          {q.lead_source && (
+            <>
+              <div className="border-t border-slate-100" />
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Lead Source</span>
+                <span className="font-medium text-slate-800">{q.lead_source}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer actions */}
