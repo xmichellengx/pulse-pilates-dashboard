@@ -127,6 +127,11 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
         installation_fee: q.installation_fee ?? 0,
         subtotal: q.subtotal ?? 0,
         total: q.total,
+        discounts: Array.isArray(q.discounts) ? q.discounts.filter(d => d.amount > 0) : [],
+        additional_charges: Array.isArray(q.additional_charges) ? q.additional_charges.filter(c => c.amount > 0) : [],
+        delivery_location: q.delivery_location ?? "",
+        estimated_delivery: q.estimated_delivery ?? "",
+        remarks: q.remarks ?? "",
       }
       const res = await fetch("/api/quotations/pdf", {
         method: "POST",
