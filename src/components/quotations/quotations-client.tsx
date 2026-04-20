@@ -322,7 +322,7 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
                         ) : isExpired ? (
                           <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600 border border-red-100">Expired</span>
                         ) : (
-                          <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-100">Draft</span>
+                          <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-100">Active</span>
                         )}
                       </td>
                     </tr>
@@ -363,7 +363,7 @@ function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelet
     ? { text: "PDF Sent", cls: "bg-blue-50 text-blue-700 border-blue-100" }
     : isExpired
     ? { text: "Expired", cls: "bg-red-50 text-red-600 border-red-100" }
-    : { text: "Draft", cls: "bg-amber-50 text-amber-700 border-amber-100" }
+    : { text: "Active", cls: "bg-emerald-50 text-emerald-700 border-emerald-100" }
 
   const tierLabel: Record<string, string> = {
     retail: "Retail",
