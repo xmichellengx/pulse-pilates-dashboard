@@ -504,6 +504,7 @@ export interface QuotationInitialData {
   customer_name: string
   customer_email?: string | null
   customer_phone: string
+  studio_name?: string | null
   market: "MY" | "SG"
   pricing_tier?: string | null
   lead_source?: string | null
@@ -578,6 +579,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
       customer_name: initialData?.customer_name ?? "",
       phone: initialData?.customer_phone ?? "",
       email: initialData?.customer_email ?? "",
+      studio_name: initialData?.studio_name ?? "",
     },
   })
 
@@ -593,6 +595,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
       customer_name: initialData.customer_name ?? "",
       phone: initialData.customer_phone ?? "",
       email: initialData.customer_email ?? "",
+      studio_name: initialData.studio_name ?? "",
       delivery_location: initialData.delivery_location ?? "",
       estimated_delivery: initialData.estimated_delivery ?? "",
       remarks: initialData.remarks ?? "",

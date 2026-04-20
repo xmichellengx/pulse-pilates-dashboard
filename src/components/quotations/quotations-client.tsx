@@ -42,6 +42,7 @@ interface Quotation {
   customer_name: string
   customer_email?: string | null
   customer_phone: string
+  studio_name?: string | null
   market: string
   pricing_tier?: string | null
   lead_source?: string | null
@@ -82,7 +83,7 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
     const supabase = createClient()
     const { data } = await supabase
       .from("quotations")
-      .select("id, quotation_number, customer_name, customer_email, customer_phone, market, pricing_tier, lead_source, total, subtotal, delivery_fee, installation_fee, delivery_location, estimated_delivery, remarks, discounts, additional_charges, items, email_sent, converted_to_order, created_at, expires_at")
+      .select("id, quotation_number, customer_name, customer_email, customer_phone, studio_name, market, pricing_tier, lead_source, total, subtotal, delivery_fee, installation_fee, delivery_location, estimated_delivery, remarks, discounts, additional_charges, items, email_sent, converted_to_order, created_at, expires_at")
       .order("created_at", { ascending: false })
       .limit(50)
     if (data) setQuotations(data)
@@ -120,6 +121,7 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
         customer_name: q.customer_name,
         customer_email: q.customer_email,
         customer_phone: q.customer_phone,
+        studio_name: q.studio_name ?? "",
         market: q.market,
         pricing_tier: q.pricing_tier,
         items,
@@ -472,6 +474,15 @@ function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelet
                   <div>
                     <p className="text-xs text-slate-400">Email</p>
                     <p className="text-sm font-medium text-slate-800">{q.customer_email}</p>
+                  </div>
+                </div>
+              )}
+              {q.studio_name && (
+                <div className="flex items-start gap-2">
+                  <FileText className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-400">Studio Name</p>
+                    <p className="text-sm font-medium text-slate-800">{q.studio_name}</p>
                   </div>
                 </div>
               )}
