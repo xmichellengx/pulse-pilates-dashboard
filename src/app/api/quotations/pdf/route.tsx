@@ -260,6 +260,13 @@ function fmt(n: number, currency: string) {
   return `${currency} ${n.toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
+function getCustomisationPrices(market: string, pricingTier?: string): { colour: number; logo: number } {
+  if (pricingTier === "p4b_t1") return { colour: 0, logo: 0 }
+  if (market === "SG") return { colour: 150, logo: 175 }
+  if (pricingTier === "p4b_t2") return { colour: 100, logo: 150 }
+  return { colour: 300, logo: 350 } // retail / B2C
+}
+
 // ---------- PDF Document ----------
 
 function QuotationDocument(props: QuotationPDFInput) {
@@ -287,6 +294,7 @@ function QuotationDocument(props: QuotationPDFInput) {
 
   const colourItems = validItems.filter((i) => i.custom_colour)
   const logoItems = validItems.filter((i) => i.logo_engraving)
+  const customPrices = getCustomisationPrices(market, props.pricing_tier)
 
   const monthlyTotal = isRental ? validItems.reduce((s, i) => s + i.unit_price * i.qty, 0) : 0
   const deposit4M = monthlyTotal * 4
@@ -413,8 +421,8 @@ function QuotationDocument(props: QuotationPDFInput) {
                 </Text>
                 <Text style={{ ...s.td, ...s.colRemarks }} />
                 <Text style={{ ...s.td, ...s.colQty }}>{item.qty}</Text>
-                <Text style={{ ...s.td, ...s.colUnitPrice }}>300</Text>
-                <Text style={{ ...s.td, ...s.colTotal }}>{(300 * item.qty).toLocaleString()}</Text>
+                <Text style={{ ...s.td, ...s.colUnitPrice }}>{customPrices.colour.toLocaleString()}</Text>
+                <Text style={{ ...s.td, ...s.colTotal }}>{(customPrices.colour * item.qty).toLocaleString()}</Text>
               </View>
             ))}
             {logoItems.map((item, i) => (
@@ -425,8 +433,8 @@ function QuotationDocument(props: QuotationPDFInput) {
                 </Text>
                 <Text style={{ ...s.td, ...s.colRemarks }} />
                 <Text style={{ ...s.td, ...s.colQty }}>{item.qty}</Text>
-                <Text style={{ ...s.td, ...s.colUnitPrice }}>200</Text>
-                <Text style={{ ...s.td, ...s.colTotal }}>{(200 * item.qty).toLocaleString()}</Text>
+                <Text style={{ ...s.td, ...s.colUnitPrice }}>{customPrices.logo.toLocaleString()}</Text>
+                <Text style={{ ...s.td, ...s.colTotal }}>{(customPrices.logo * item.qty).toLocaleString()}</Text>
               </View>
             ))}
           </View>
