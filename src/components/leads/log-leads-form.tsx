@@ -17,6 +17,7 @@ const SOURCES = [
   "TikTok",
   "XHS",
   "Referral",
+  "Returning Customer",
   "Shopee",
   "Shopify",
   "Walk In",

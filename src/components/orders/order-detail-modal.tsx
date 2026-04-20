@@ -70,6 +70,7 @@ const LEAD_SOURCE_OPTIONS = [
   "TikTok",
   "XHS",
   "Referral",
+  "Returning Customer",
   "Shopee",
   "Shopify",
   "Repeat Customer",

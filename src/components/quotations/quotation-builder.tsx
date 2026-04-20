@@ -95,6 +95,7 @@ const LEAD_SOURCES = [
   "XHS",
   "SGS – Carousell/Facebook",
   "Referral",
+  "Returning Customer",
   "Walk In",
   "Shopee",
   "Shopify",
@@ -532,6 +533,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
   const [currentUserName, setCurrentUserName] = useState("Michelle")
   const [savedQuotationNumber, setSavedQuotationNumber] = useState(initialData?.quotation_number ?? "")
   const [discounts, setDiscounts] = useState<DiscountItem[]>([])
+  const [additionalCharges, setAdditionalCharges] = useState<DiscountItem[]>([])
 
   const [lineItems, setLineItems] = useState<LineItem[]>(() => {
     if (initialData?.items && Array.isArray(initialData.items) && initialData.items.length > 0) {
@@ -647,7 +649,8 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
     0
   )
   const totalDiscount = discounts.reduce((s, d) => s + (d.amount || 0), 0)
-  const total = subtotal + watchedValues.delivery_fee + watchedValues.installation_fee - totalDiscount
+  const totalAdditional = additionalCharges.reduce((s, c) => s + (c.amount || 0), 0)
+  const total = subtotal + watchedValues.delivery_fee + watchedValues.installation_fee - totalDiscount + totalAdditional
   const isRentalMode = lineItems.length === 1 && lineItems[0].purchase_mode === "rental"
 
   function addItem() {
@@ -708,6 +711,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
         subtotal,
         total,
         discounts: discounts.filter((d) => d.amount > 0),
+        additional_charges: additionalCharges.filter((c) => c.amount > 0),
         estimated_delivery: watchedValues.estimated_delivery,
         delivery_location: watchedValues.delivery_location,
         remarks: watchedValues.remarks,
@@ -871,64 +875,65 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
               />
             </div>
 
-            {/* Market toggle */}
-            <div className="space-y-1">
-              <Label className="text-sm font-medium text-slate-700">Market</Label>
-              <Controller
-                name="market"
-                control={control}
-                render={({ field }) => (
-                  <div className="flex gap-2">
-                    {(["MY", "SG"] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => field.onChange(m)}
-                        className={cn(
-                          "flex-1 py-2 rounded-lg border text-sm font-semibold transition-all",
-                          field.value === m
-                            ? "bg-indigo-500 text-white border-indigo-500"
-                            : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
-                        )}
-                      >
-                        {m === "MY" ? "Malaysia" : "Singapore"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              />
-            </div>
+            {/* Market + Pricing Tier side by side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium text-slate-700">Market</Label>
+                <Controller
+                  name="market"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex gap-2">
+                      {(["MY", "SG"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => field.onChange(m)}
+                          className={cn(
+                            "flex-1 h-9 rounded-lg border text-sm font-semibold transition-all",
+                            field.value === m
+                              ? "bg-indigo-500 text-white border-indigo-500"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
+                          )}
+                        >
+                          {m === "MY" ? "Malaysia" : "Singapore"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                />
+              </div>
 
-            {/* Pricing tier */}
-            <div className="space-y-1">
-              <Label className="text-sm font-medium text-slate-700">Pricing Tier</Label>
-              <Controller
-                name="pricing_tier"
-                control={control}
-                render={({ field }) => (
-                  <div className="flex gap-2">
-                    {(["retail", "p4b_t2", "p4b_t1"] as const).map((tier) => (
-                      <button
-                        key={tier}
-                        type="button"
-                        onClick={() => field.onChange(tier)}
-                        className={cn(
-                          "flex-1 py-1.5 rounded-lg border text-xs font-semibold transition-all",
-                          field.value === tier
-                            ? "bg-indigo-500 text-white border-indigo-500"
-                            : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
-                        )}
-                      >
-                        {tier === "retail" ? "Retail" : tier === "p4b_t2" ? "P4B T2" : "P4B T1"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              />
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium text-slate-700">Pricing Tier</Label>
+                <Controller
+                  name="pricing_tier"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex gap-2">
+                      {(["retail", "p4b_t2", "p4b_t1"] as const).map((tier) => (
+                        <button
+                          key={tier}
+                          type="button"
+                          onClick={() => field.onChange(tier)}
+                          className={cn(
+                            "flex-1 h-9 rounded-lg border text-xs font-semibold transition-all",
+                            field.value === tier
+                              ? "bg-indigo-500 text-white border-indigo-500"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
+                          )}
+                        >
+                          {tier === "retail" ? "Retail" : tier === "p4b_t2" ? "P4B T2" : "P4B T1"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                />
+              </div>
             </div>
 
             {/* Lead source */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label className="text-sm font-medium text-slate-700">
                 Lead Source <span className="text-red-500">*</span>
               </Label>
@@ -1143,6 +1148,51 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
               )}
             </div>
 
+            {/* Additional Charges */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium text-slate-700">Additional Charges</Label>
+                <button
+                  type="button"
+                  onClick={() => setAdditionalCharges((prev) => [...prev, { label: "", amount: 0 }])}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-indigo-100 bg-indigo-50 text-indigo-600 text-xs font-medium hover:bg-indigo-100 transition-all"
+                >
+                  <Plus className="h-3 w-3" /> Add Charge
+                </button>
+              </div>
+              {additionalCharges.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No additional charges</p>
+              ) : (
+                <div className="space-y-2">
+                  {additionalCharges.map((c, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        placeholder="Label (e.g. Stair carry, Express fee)"
+                        value={c.label}
+                        onChange={(e) => setAdditionalCharges((prev) => prev.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                        className="h-8 flex-1 text-sm"
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Amount"
+                        value={c.amount || ""}
+                        onChange={(e) => setAdditionalCharges((prev) => prev.map((x, i) => i === idx ? { ...x, amount: parseFloat(e.target.value) || 0 } : x))}
+                        className="h-8 w-28 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAdditionalCharges((prev) => prev.filter((_, i) => i !== idx))}
+                        className="text-slate-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Totals preview */}
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 space-y-2">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -1156,6 +1206,12 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
                 <div key={i} className="flex justify-between text-sm text-red-500">
                   <span>(-) {d.label || "Discount"}</span>
                   <span>-{currency} {d.amount.toLocaleString()}</span>
+                </div>
+              ))}
+              {additionalCharges.filter((c) => c.amount > 0).map((c, i) => (
+                <div key={i} className="flex justify-between text-sm text-emerald-600">
+                  <span>(+) {c.label || "Additional charge"}</span>
+                  <span>+{currency} {c.amount.toLocaleString()}</span>
                 </div>
               ))}
               <div className="flex justify-between text-sm text-slate-700">
@@ -1238,6 +1294,12 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
                 <div key={i} className="flex justify-between text-sm text-red-500">
                   <span>(-) {d.label || "Discount"}</span>
                   <span>-{currency} {d.amount.toLocaleString()}</span>
+                </div>
+              ))}
+              {additionalCharges.filter((c) => c.amount > 0).map((c, i) => (
+                <div key={i} className="flex justify-between text-sm text-emerald-600">
+                  <span>(+) {c.label || "Additional charge"}</span>
+                  <span>+{currency} {c.amount.toLocaleString()}</span>
                 </div>
               ))}
               <div className="flex justify-between text-sm text-slate-700">

@@ -36,7 +36,7 @@ interface DiscountItem {
 
 const LEAD_SOURCES = [
   "Google", "Facebook", "Instagram", "TikTok", "XHS",
-  "Referral", "Walk In", "Shopee", "Shopify", "Repeat Customer",
+  "Referral", "Returning Customer", "Walk In", "Shopee", "Shopify", "Repeat Customer",
 ]
 const PAYMENT_TYPES = ["Bank Transfer", "Atome", "Credit Card", "Cash", "TNG", "Other"]
 const STATUSES = ["Pending Shipment Arrival", "Pending Delivery", "Delivered", "Cancelled", "Returned"]

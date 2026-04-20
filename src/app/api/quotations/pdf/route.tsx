@@ -249,6 +249,7 @@ interface QuotationPDFInput {
   subtotal: number
   total: number
   discounts?: DiscountItem[]
+  additional_charges?: DiscountItem[]
   estimated_delivery?: string
   delivery_location?: string
   remarks?: string
@@ -282,6 +283,7 @@ function QuotationDocument(props: QuotationPDFInput) {
     installation_fee,
     total,
     discounts,
+    additional_charges,
     estimated_delivery,
     delivery_location,
   } = props
@@ -301,6 +303,7 @@ function QuotationDocument(props: QuotationPDFInput) {
   const rentalActivation = isRental ? delivery_fee + installation_fee + monthlyTotal + deposit4M : 0
 
   const activeDiscounts = (discounts ?? []).filter((d) => d.amount > 0)
+  const activeAdditional = (additional_charges ?? []).filter((c) => c.amount > 0)
 
   const today = new Date()
   const dateStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`
@@ -515,6 +518,12 @@ function QuotationDocument(props: QuotationPDFInput) {
                   <View key={i} style={s.discountRow}>
                     <Text style={s.discountLabel}>(-) Discount ({d.label || "Discount"})</Text>
                     <Text style={s.discountValue}>-{d.amount.toLocaleString()}</Text>
+                  </View>
+                ))}
+                {activeAdditional.map((c, i) => (
+                  <View key={`add-${i}`} style={s.totalRow}>
+                    <Text style={s.totalLabel}>(+) {c.label || "Additional charge"}</Text>
+                    <Text style={s.totalValue}>{c.amount.toLocaleString()}</Text>
                   </View>
                 ))}
                 <View style={s.grandTotalRow}>
