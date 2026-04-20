@@ -48,6 +48,11 @@ interface Quotation {
   subtotal?: number | null
   delivery_fee?: number | null
   installation_fee?: number | null
+  delivery_location?: string | null
+  estimated_delivery?: string | null
+  remarks?: string | null
+  discounts?: Array<{ label: string; amount: number }> | null
+  additional_charges?: Array<{ label: string; amount: number }> | null
   items: unknown[]
   email_sent: boolean
   converted_to_order: string | null
@@ -75,7 +80,7 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
     const supabase = createClient()
     const { data } = await supabase
       .from("quotations")
-      .select("id, quotation_number, customer_name, customer_email, customer_phone, market, pricing_tier, lead_source, total, subtotal, delivery_fee, installation_fee, items, email_sent, converted_to_order, created_at, expires_at")
+      .select("id, quotation_number, customer_name, customer_email, customer_phone, market, pricing_tier, lead_source, total, subtotal, delivery_fee, installation_fee, delivery_location, estimated_delivery, remarks, discounts, additional_charges, items, email_sent, converted_to_order, created_at, expires_at")
       .order("created_at", { ascending: false })
       .limit(50)
     if (data) setQuotations(data)

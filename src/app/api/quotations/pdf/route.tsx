@@ -531,8 +531,12 @@ function QuotationDocument(props: QuotationPDFInput) {
                   <Text style={s.grandTotalValue}>{fmt(total, currency)}</Text>
                 </View>
                 <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>(-) Booking Fee ({currency})</Text>
-                  <Text style={s.totalValue}></Text>
+                  <Text style={s.totalLabel}>Booking Fee - 60% ({currency})</Text>
+                  <Text style={s.totalValue}>{Math.round(total * 0.6).toLocaleString()}</Text>
+                </View>
+                <View style={s.totalRow}>
+                  <Text style={s.totalLabel}>Balance - 40% ({currency})</Text>
+                  <Text style={s.totalValue}>{Math.round(total * 0.4).toLocaleString()}</Text>
                 </View>
               </>
             )}

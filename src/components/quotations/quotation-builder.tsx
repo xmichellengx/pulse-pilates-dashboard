@@ -509,6 +509,11 @@ export interface QuotationInitialData {
   lead_source?: string | null
   delivery_fee?: number | null
   installation_fee?: number | null
+  delivery_location?: string | null
+  estimated_delivery?: string | null
+  remarks?: string | null
+  discounts?: Array<{ label: string; amount: number }>
+  additional_charges?: Array<{ label: string; amount: number }>
   items?: unknown[]
 }
 
@@ -588,7 +593,16 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
       customer_name: initialData.customer_name ?? "",
       phone: initialData.customer_phone ?? "",
       email: initialData.customer_email ?? "",
+      delivery_location: initialData.delivery_location ?? "",
+      estimated_delivery: initialData.estimated_delivery ?? "",
+      remarks: initialData.remarks ?? "",
     })
+    if (initialData.discounts && Array.isArray(initialData.discounts)) {
+      setDiscounts(initialData.discounts)
+    }
+    if (initialData.additional_charges && Array.isArray(initialData.additional_charges)) {
+      setAdditionalCharges(initialData.additional_charges)
+    }
     if (initialData.items && Array.isArray(initialData.items) && initialData.items.length > 0) {
       setLineItems(initialData.items as LineItem[])
     }
@@ -774,6 +788,11 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
         installation_fee: values.installation_fee,
         total,
         customisation_notes: customisationNotes || null,
+        delivery_location: values.delivery_location || null,
+        estimated_delivery: values.estimated_delivery || null,
+        remarks: values.remarks || null,
+        discounts: discounts.filter((d) => d.amount > 0),
+        additional_charges: additionalCharges.filter((c) => c.amount > 0),
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
           .toISOString()
           .slice(0, 10),
