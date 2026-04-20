@@ -1358,8 +1358,8 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
               </div>
             )}
 
-            {/* Booking fee breakdown (for direct purchase) */}
-            {!isRentalMode && total > 0 && (
+            {/* Booking fee breakdown (P4B T1/T2 only — retail is full payment) */}
+            {!isRentalMode && total > 0 && (pricingTier === "p4b_t1" || pricingTier === "p4b_t2") && (
               <div className="rounded-lg border border-amber-100 bg-amber-50 p-4 space-y-1.5">
                 <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Booking Fee Breakdown</p>
                 <div className="flex justify-between text-sm text-amber-800">

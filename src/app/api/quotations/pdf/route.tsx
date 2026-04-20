@@ -499,10 +499,6 @@ function QuotationDocument(props: QuotationPDFInput) {
                   <Text style={s.grandTotalLabel}>Rental Activation ({currency})</Text>
                   <Text style={s.grandTotalValue}>{rentalActivation.toLocaleString()}</Text>
                 </View>
-                <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>(-) Booking Fee ({currency})</Text>
-                  <Text style={s.totalValue}></Text>
-                </View>
               </>
             ) : (
               <>
@@ -530,14 +526,18 @@ function QuotationDocument(props: QuotationPDFInput) {
                   <Text style={s.grandTotalLabel}>Grand Total ({currency})</Text>
                   <Text style={s.grandTotalValue}>{fmt(total, currency)}</Text>
                 </View>
-                <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>Booking Fee - 60% ({currency})</Text>
-                  <Text style={s.totalValue}>{Math.round(total * 0.6).toLocaleString()}</Text>
-                </View>
-                <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>Balance - 40% ({currency})</Text>
-                  <Text style={s.totalValue}>{Math.round(total * 0.4).toLocaleString()}</Text>
-                </View>
+                {(props.pricing_tier === "p4b_t1" || props.pricing_tier === "p4b_t2") && (
+                  <>
+                    <View style={s.totalRow}>
+                      <Text style={s.totalLabel}>Booking Fee - 60% ({currency})</Text>
+                      <Text style={s.totalValue}>{Math.round(total * 0.6).toLocaleString()}</Text>
+                    </View>
+                    <View style={s.totalRow}>
+                      <Text style={s.totalLabel}>Balance - 40% ({currency})</Text>
+                      <Text style={s.totalValue}>{Math.round(total * 0.4).toLocaleString()}</Text>
+                    </View>
+                  </>
+                )}
               </>
             )}
           </View>
