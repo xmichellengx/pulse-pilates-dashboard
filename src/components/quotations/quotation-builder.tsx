@@ -785,6 +785,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
         customer_name: values.customer_name,
         customer_email: values.email || null,
         customer_phone: values.phone,
+        studio_name: values.studio_name || null,
         market,
         pricing_tier: values.pricing_tier,
         lead_source: values.lead_source || null,
