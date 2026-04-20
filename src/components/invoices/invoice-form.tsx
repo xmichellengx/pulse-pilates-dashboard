@@ -34,12 +34,14 @@ const schema = z.object({
   customer_name: z.string().min(1, "Name required"),
   customer_email: z.string().optional(),
   order_case_code: z.string().optional(),
-  type: z.enum(["purchase", "rental", "deposit"]),
+  type: z.string().min(1),
   currency: z.enum(["RM", "SGD"]),
   amount: z.number().min(0),
 })
 
 type FormValues = z.infer<typeof schema>
+
+const INVOICE_TYPES = ["purchase", "rental", "deposit", "invoice", "receipt"]
 
 function generateInvoiceNumber(): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "")
@@ -47,19 +49,32 @@ function generateInvoiceNumber(): string {
   return `INV-${date}-${rand}`
 }
 
+export interface InvoiceInitialData {
+  id: string
+  invoice_number: string
+  type: string
+  customer_name: string
+  customer_email?: string | null
+  amount?: number | null
+  sent_at?: string | null
+}
+
 interface InvoiceFormProps {
   onClose: () => void
   onSaved: () => void
+  initialData?: InvoiceInitialData
 }
 
-export function InvoiceForm({ onClose, onSaved }: InvoiceFormProps) {
+export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps) {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { description: "", qty: 1, unit_price: 0, amount: 0 },
   ])
   const [saving, setSaving] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
-  const [markedSent, setMarkedSent] = useState(false)
+  const [markedSent, setMarkedSent] = useState(!!initialData?.sent_at)
+
+  const isEditing = !!initialData?.id
 
   const {
     register,
@@ -70,9 +85,11 @@ export function InvoiceForm({ onClose, onSaved }: InvoiceFormProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      type: "purchase",
+      type: initialData?.type ?? "purchase",
       currency: "RM",
-      amount: 0,
+      amount: initialData?.amount ?? 0,
+      customer_name: initialData?.customer_name ?? "",
+      customer_email: initialData?.customer_email ?? "",
     },
   })
 
@@ -173,21 +190,40 @@ export function InvoiceForm({ onClose, onSaved }: InvoiceFormProps) {
   async function handleSave(values: FormValues) {
     setSaving(true)
     try {
-      const supabase = createClient()
-      const invoiceNumber = generateInvoiceNumber()
+      if (isEditing) {
+        const res = await fetch("/api/invoices", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: initialData!.id,
+            type: values.type,
+            customer_name: values.customer_name,
+            customer_email: values.customer_email || null,
+            amount: values.amount,
+            sent_at: markedSent ? (initialData!.sent_at ?? new Date().toISOString()) : null,
+          }),
+        })
+        if (!res.ok) {
+          const { error } = await res.json()
+          throw new Error(error)
+        }
+        toast.success(`Invoice ${initialData!.invoice_number} updated`)
+      } else {
+        const supabase = createClient()
+        const invoiceNumber = generateInvoiceNumber()
 
-      const { error } = await supabase.from("invoices").insert({
-        invoice_number: invoiceNumber,
-        type: values.type,
-        customer_name: values.customer_name,
-        customer_email: values.customer_email || null,
-        amount: values.amount,
-        sent_at: markedSent ? new Date().toISOString() : null,
-      })
+        const { error } = await supabase.from("invoices").insert({
+          invoice_number: invoiceNumber,
+          type: values.type,
+          customer_name: values.customer_name,
+          customer_email: values.customer_email || null,
+          amount: values.amount,
+          sent_at: markedSent ? new Date().toISOString() : null,
+        })
 
-      if (error) throw error
-
-      toast.success(`Invoice ${invoiceNumber} saved`)
+        if (error) throw error
+        toast.success(`Invoice ${invoiceNumber} saved`)
+      }
       onSaved()
     } catch (err) {
       console.error(err)
@@ -259,14 +295,14 @@ export function InvoiceForm({ onClose, onSaved }: InvoiceFormProps) {
       {/* Invoice type */}
       <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Invoice Type</p>
-        <div className="flex gap-2">
-          {(["purchase", "rental", "deposit"] as const).map((t) => (
+        <div className="flex gap-2 flex-wrap">
+          {INVOICE_TYPES.map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setValue("type", t)}
               className={cn(
-                "flex-1 py-2 rounded-lg border text-xs font-semibold transition-all capitalize",
+                "px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all capitalize",
                 watchedValues.type === t
                   ? "bg-indigo-500 text-white border-indigo-500"
                   : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"

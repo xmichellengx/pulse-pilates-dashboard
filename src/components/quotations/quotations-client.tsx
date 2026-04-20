@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { QuotationBuilder, type Product, type QuotationInitialData } from "@/components/quotations/quotation-builder"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { formatDate } from "@/lib/utils"
+import { useRouter } from "next/navigation"
 import {
   Plus,
   Pencil,
@@ -17,6 +18,8 @@ import {
   Phone,
   Mail,
   Loader2,
+  Download,
+  ShoppingCart,
 } from "lucide-react"
 
 interface LineItem {
@@ -57,12 +60,15 @@ interface QuotationsClientProps {
 }
 
 export function QuotationsClient({ initialQuotations, products }: QuotationsClientProps) {
+  const router = useRouter()
   const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations)
   const [newSheetOpen, setNewSheetOpen] = useState(false)
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [viewModal, setViewModal] = useState<Quotation | null>(null)
   const [editTarget, setEditTarget] = useState<Quotation | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [converting, setConverting] = useState(false)
 
   async function refreshList() {
     const supabase = createClient()
@@ -95,6 +101,91 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
     setViewModal(null)
     setEditTarget(q)
     setEditSheetOpen(true)
+  }
+
+  async function handleGeneratePdf(q: Quotation) {
+    setGeneratingPdf(true)
+    try {
+      const items = (Array.isArray(q.items) ? q.items : []) as LineItem[]
+      const payload = {
+        quotation_number: q.quotation_number,
+        customer_name: q.customer_name,
+        customer_email: q.customer_email,
+        customer_phone: q.customer_phone,
+        market: q.market,
+        pricing_tier: q.pricing_tier,
+        items,
+        delivery_fee: q.delivery_fee ?? 0,
+        installation_fee: q.installation_fee ?? 0,
+        subtotal: q.subtotal ?? 0,
+        total: q.total,
+      }
+      const res = await fetch("/api/quotations/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error("PDF failed")
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${q.quotation_number}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success("PDF downloaded")
+    } catch {
+      toast.error("Failed to generate PDF")
+    } finally {
+      setGeneratingPdf(false)
+    }
+  }
+
+  async function handleConvertToOrder(q: Quotation) {
+    setConverting(true)
+    try {
+      const items = (Array.isArray(q.items) ? q.items : []) as LineItem[]
+      const validItems = items.filter((i) => i.product_id)
+      const productSummary = validItems.map((i) => `${i.qty}x ${i.product_name}`).join(", ")
+      const firstItem = validItems[0]
+      const mode = firstItem?.purchase_mode === "rental"
+        ? "Rental"
+        : firstItem?.purchase_mode === "cc_installment"
+        ? "CC Installment"
+        : "Direct Purchase"
+
+      // Create order entry in the DB
+      const supabase = createClient()
+      const { error } = await supabase.from("orders").insert({
+        customer_name: q.customer_name,
+        email: q.customer_email || null,
+        phone: q.customer_phone || null,
+        product_name: productSummary || firstItem?.product_name || "See quotation",
+        units: firstItem?.qty ?? 1,
+        mode,
+        amount: q.total,
+        market: q.market,
+        status: "Pending",
+        remarks: `Converted from ${q.quotation_number}`,
+        created_at: new Date().toISOString(),
+      })
+      if (error) throw error
+
+      // Mark quotation as converted
+      await supabase.from("quotations").update({ converted_to_order: q.quotation_number }).eq("id", q.id)
+
+      setQuotations((prev) =>
+        prev.map((x) => x.id === q.id ? { ...x, converted_to_order: q.quotation_number } : x)
+      )
+      setViewModal(null)
+      toast.success("Order created! Go to Orders to complete the details.")
+      router.refresh()
+    } catch (err) {
+      console.error(err)
+      toast.error("Failed to convert to order")
+    } finally {
+      setConverting(false)
+    }
   }
 
   const currency = (market: string) => (market === "SG" ? "SGD" : "RM")
@@ -156,7 +247,11 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
           onClose={() => setViewModal(null)}
           onEdit={() => openEdit(viewModal)}
           onDelete={() => handleDelete(viewModal)}
+          onGeneratePdf={() => handleGeneratePdf(viewModal)}
+          onConvertToOrder={() => handleConvertToOrder(viewModal)}
           deleting={deleting}
+          generatingPdf={generatingPdf}
+          converting={converting}
         />
       )}
 
@@ -244,10 +339,14 @@ interface QuotationDetailModalProps {
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
+  onGeneratePdf: () => void
+  onConvertToOrder: () => void
   deleting: boolean
+  generatingPdf: boolean
+  converting: boolean
 }
 
-function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelete, deleting }: QuotationDetailModalProps) {
+function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelete, onGeneratePdf, onConvertToOrder, deleting, generatingPdf, converting }: QuotationDetailModalProps) {
   const items = (Array.isArray(q.items) ? q.items : []) as LineItem[]
   const validItems = items.filter((i) => i.product_id)
   const isExpired = q.expires_at && new Date(q.expires_at) < new Date()
@@ -442,22 +541,46 @@ function QuotationDetailModal({ quotation: q, currency, onClose, onEdit, onDelet
         </div>
 
         {/* Footer actions */}
-        <div className="sticky bottom-0 px-6 py-4 bg-white border-t border-slate-100 flex gap-3">
-          <button
-            onClick={onEdit}
-            className="flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-colors"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Edit Quotation
-          </button>
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60"
-          >
-            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-            Delete
-          </button>
+        <div className="sticky bottom-0 px-6 py-4 bg-white border-t border-slate-100 space-y-2">
+          {/* Top row: PDF + Edit */}
+          <div className="flex gap-2">
+            <button
+              onClick={onGeneratePdf}
+              disabled={generatingPdf}
+              className="flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-semibold hover:bg-indigo-100 transition-colors disabled:opacity-60"
+            >
+              {generatingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              Download PDF
+            </button>
+            <button
+              onClick={onEdit}
+              className="flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Quotation
+            </button>
+          </div>
+          {/* Bottom row: Convert + Delete */}
+          <div className="flex gap-2">
+            {!q.converted_to_order && (
+              <button
+                onClick={onConvertToOrder}
+                disabled={converting}
+                className="flex-1 inline-flex items-center justify-center gap-2 h-9 rounded-lg border border-green-200 bg-green-50 text-green-700 text-sm font-semibold hover:bg-green-100 transition-colors disabled:opacity-60"
+              >
+                {converting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShoppingCart className="h-3.5 w-3.5" />}
+                Convert to Order
+              </button>
+            )}
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60"
+            >
+              {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Delete
+            </button>
+          </div>
         </div>
       </div>
     </div>

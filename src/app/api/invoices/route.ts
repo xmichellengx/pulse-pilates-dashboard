@@ -23,3 +23,12 @@ export async function POST(req: Request) {
   if (error) return Response.json({ error: error.message }, { status: 400 })
   return Response.json({ ok: true })
 }
+
+export async function PATCH(req: Request) {
+  const body = await req.json()
+  const { id, ...updates } = body
+  if (!id) return Response.json({ error: "id required" }, { status: 400 })
+  const { data, error } = await supabase.from("invoices").update(updates).eq("id", id).select().single()
+  if (error) return Response.json({ error: error.message }, { status: 400 })
+  return Response.json(data)
+}
