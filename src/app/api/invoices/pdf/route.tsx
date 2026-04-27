@@ -508,12 +508,6 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
                 <Text style={s.sectionVal}>{`: ${warranty_spring_start} – ${warranty_spring_end} (3 months)`}</Text>
               </View>
             )}
-            <View style={s.sectionLine}>
-              <Text style={s.sectionKey}> </Text>
-              <Text style={[s.sectionVal, { fontStyle: "italic", color: "#555" }]}>
-                Covers manufacturer defect only. Damage from mishandling is not covered.
-              </Text>
-            </View>
           </>
         )}
 
