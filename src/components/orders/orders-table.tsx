@@ -13,6 +13,24 @@ import {
 import { OrderDetailModal } from "./order-detail-modal"
 import { formatCurrency } from "@/lib/utils"
 
+export type OrderLineItem = {
+  product_id?: string
+  product_name: string
+  qty: number
+  unit_price: number
+  purchase_mode?: string
+  custom_colour?: boolean
+  colour_name?: string
+  logo_engraving?: boolean
+  engraving_notes?: string
+  customisation_surcharge?: number
+}
+
+export type OrderAdjustment = {
+  label: string
+  amount: number
+}
+
 export type Order = {
   id: string
   case_code: string | null
@@ -39,6 +57,17 @@ export type Order = {
   warranty_start_date: string | null
   warranty_end_date: string | null
   created_at: string
+  subtotal: number | null
+  delivery_fee: number | null
+  installation_fee: number | null
+  discounts: OrderAdjustment[] | null
+  additional_charges: OrderAdjustment[] | null
+  items: OrderLineItem[] | null
+  delivery_location: string | null
+  estimated_delivery: string | null
+  studio_name: string | null
+  pricing_tier: string | null
+  quotation_id: string | null
 }
 
 interface OrdersTableProps {

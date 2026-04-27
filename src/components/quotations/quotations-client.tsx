@@ -161,7 +161,10 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
     try {
       const items = (Array.isArray(q.items) ? q.items : []) as LineItem[]
       const validItems = items.filter((i) => i.product_id)
-      const productSummary = validItems.map((i) => `${i.qty}x ${i.product_name}`).join(", ")
+      const productSummary = validItems
+        .map((i) => (i.qty > 1 ? `${i.product_name} ×${i.qty}` : i.product_name))
+        .join(" + ")
+      const totalUnits = validItems.reduce((s, i) => s + (i.qty || 1), 0)
       const firstItem = validItems[0]
       const mode = firstItem?.purchase_mode === "rental"
         ? "Rental"
@@ -169,31 +172,62 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
         ? "CC Installment"
         : "Direct Purchase"
 
+      // For rentals, derive monthly_rental from the first item's unit_price (which is the monthly rate)
+      const monthlyRental = mode === "Rental"
+        ? validItems.reduce((s, i) => s + (i.unit_price || 0) * (i.qty || 1), 0)
+        : null
+
       // Create order entry in the DB
       const supabase = createClient()
-      const { error } = await supabase.from("orders").insert({
-        customer_name: q.customer_name,
-        email: q.customer_email || null,
-        phone: q.customer_phone || null,
-        product_name: productSummary || firstItem?.product_name || "See quotation",
-        units: firstItem?.qty ?? 1,
-        mode,
-        amount: q.total,
-        market: q.market,
-        status: "Pending",
-        remarks: `Converted from ${q.quotation_number}`,
-        created_at: new Date().toISOString(),
-      })
+      const { data: newOrder, error } = await supabase
+        .from("orders")
+        .insert({
+          customer_name: q.customer_name,
+          email: q.customer_email || null,
+          phone: q.customer_phone || null,
+          product_name: productSummary || firstItem?.product_name || "See quotation",
+          units: totalUnits || firstItem?.qty || 1,
+          mode,
+          amount: q.total,
+          monthly_rental: monthlyRental,
+          market: q.market,
+          status: "Pending",
+          lead_source: q.lead_source ?? null,
+          remarks: q.remarks
+            ? `Converted from ${q.quotation_number}\n\n${q.remarks}`
+            : `Converted from ${q.quotation_number}`,
+          // Carry over the financial + logistics breakdown from the quotation
+          subtotal: q.subtotal ?? null,
+          delivery_fee: q.delivery_fee ?? 0,
+          installation_fee: q.installation_fee ?? 0,
+          discounts: Array.isArray(q.discounts) ? q.discounts : [],
+          additional_charges: Array.isArray(q.additional_charges) ? q.additional_charges : [],
+          items: Array.isArray(q.items) ? q.items : [],
+          delivery_location: q.delivery_location ?? null,
+          estimated_delivery: q.estimated_delivery ?? null,
+          studio_name: q.studio_name ?? null,
+          pricing_tier: q.pricing_tier ?? null,
+          quotation_id: q.id,
+          location: q.delivery_location ?? null,
+          created_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single()
       if (error) throw error
 
-      // Mark quotation as converted
-      await supabase.from("quotations").update({ converted_to_order: q.quotation_number }).eq("id", q.id)
+      // Mark quotation as converted (link to the new order's UUID)
+      const orderId = newOrder?.id ?? null
+      const { error: updateErr } = await supabase
+        .from("quotations")
+        .update({ converted_to_order: orderId })
+        .eq("id", q.id)
+      if (updateErr) console.error("Failed to link quotation -> order:", updateErr)
 
       setQuotations((prev) =>
-        prev.map((x) => x.id === q.id ? { ...x, converted_to_order: q.quotation_number } : x)
+        prev.map((x) => x.id === q.id ? { ...x, converted_to_order: orderId } : x)
       )
       setViewModal(null)
-      toast.success("Order created! Go to Orders to complete the details.")
+      toast.success("Order created with full breakdown. Open Orders to finish.")
       router.refresh()
     } catch (err) {
       console.error(err)

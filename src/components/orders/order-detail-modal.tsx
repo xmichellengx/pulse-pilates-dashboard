@@ -19,6 +19,9 @@ import {
   Trash2,
   AlertTriangle,
   ShieldAlert,
+  Receipt,
+  Building2,
+  Truck,
 } from "lucide-react"
 import type { Order } from "./orders-table"
 import { formatCurrency } from "@/lib/utils"
@@ -424,6 +427,12 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
               )}
             </div>
             <h2 className="text-lg font-semibold text-slate-900">{currentOrder.customer_name}</h2>
+            {currentOrder.studio_name && (
+              <p className="text-sm text-slate-600 mt-0.5 flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                {currentOrder.studio_name}
+              </p>
+            )}
             <p className="text-sm text-slate-500 mt-0.5">{currentOrder.product_name ?? "No product"}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0 ml-4">
@@ -612,8 +621,144 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                   {null}
                 </Field>
               )}
+              {currentOrder.pricing_tier && !isEditing && (
+                <Field label="Pricing Tier" value={currentOrder.pricing_tier} editing={false}>
+                  {null}
+                </Field>
+              )}
             </dl>
           </section>
+
+          {/* Pricing Breakdown — read-only, only when meaningful breakdown data exists */}
+          {(() => {
+            const items = Array.isArray(currentOrder.items) ? currentOrder.items : []
+            const discounts = Array.isArray(currentOrder.discounts) ? currentOrder.discounts : []
+            const additionalCharges = Array.isArray(currentOrder.additional_charges) ? currentOrder.additional_charges : []
+            const hasBreakdown =
+              currentOrder.subtotal != null ||
+              (currentOrder.delivery_fee ?? 0) > 0 ||
+              (currentOrder.installation_fee ?? 0) > 0 ||
+              discounts.length > 0 ||
+              additionalCharges.length > 0 ||
+              items.length > 0
+            if (!hasBreakdown || isEditing) return null
+            return (
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Receipt className="h-4 w-4 text-indigo-500" />
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pricing Breakdown</h3>
+                </div>
+
+                {/* Line items */}
+                {items.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {items.map((item, idx) => {
+                      const lineTotal = (item.unit_price ?? 0) * (item.qty ?? 1)
+                      return (
+                        <div key={idx} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-slate-800">
+                              {item.product_name} <span className="text-slate-400 font-normal">× {item.qty ?? 1}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                              {item.purchase_mode && (
+                                <span className="text-xs text-slate-500 capitalize">
+                                  {item.purchase_mode === "cc_installment" ? "CC Installment" : item.purchase_mode === "direct" ? "Direct Purchase" : item.purchase_mode}
+                                </span>
+                              )}
+                              {item.custom_colour && item.colour_name && (
+                                <span className="text-xs text-indigo-600">Colour: {item.colour_name}</span>
+                              )}
+                              {item.logo_engraving && (
+                                <span className="text-xs text-indigo-600">
+                                  Logo engraving{item.engraving_notes ? `: ${item.engraving_notes}` : ""}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-sm font-semibold text-slate-800">{formatCurrency(lineTotal)}</div>
+                            {(item.customisation_surcharge ?? 0) > 0 && (
+                              <div className="text-xs text-slate-400 mt-0.5">
+                                +{formatCurrency(item.customisation_surcharge ?? 0)} custom
+                              </div>
+                            )}
+                            <div className="text-xs text-slate-400 mt-0.5">
+                              {formatCurrency(item.unit_price ?? 0)} each
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Totals */}
+                <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                  <div className="divide-y divide-slate-100">
+                    {currentOrder.subtotal != null && (
+                      <div className="flex justify-between px-4 py-2.5 text-sm">
+                        <span className="text-slate-500">Equipment subtotal</span>
+                        <span className="font-medium text-slate-700">{formatCurrency(currentOrder.subtotal)}</span>
+                      </div>
+                    )}
+                    {discounts.filter(d => (d?.amount ?? 0) > 0).map((d, i) => (
+                      <div key={`disc-${i}`} className="flex justify-between px-4 py-2.5 text-sm">
+                        <span className="text-red-500">(-) {d.label || "Discount"}</span>
+                        <span className="font-medium text-red-500">-{formatCurrency(d.amount)}</span>
+                      </div>
+                    ))}
+                    {additionalCharges.filter(c => (c?.amount ?? 0) > 0).map((c, i) => (
+                      <div key={`add-${i}`} className="flex justify-between px-4 py-2.5 text-sm">
+                        <span className="text-emerald-600">(+) {c.label || "Additional charge"}</span>
+                        <span className="font-medium text-emerald-600">+{formatCurrency(c.amount)}</span>
+                      </div>
+                    ))}
+                    {(currentOrder.delivery_fee ?? 0) > 0 && (
+                      <div className="flex justify-between px-4 py-2.5 text-sm">
+                        <span className="text-slate-500">Delivery</span>
+                        <span className="font-medium text-slate-700">{formatCurrency(currentOrder.delivery_fee ?? 0)}</span>
+                      </div>
+                    )}
+                    {(currentOrder.installation_fee ?? 0) > 0 && (
+                      <div className="flex justify-between px-4 py-2.5 text-sm">
+                        <span className="text-slate-500">Installation</span>
+                        <span className="font-medium text-slate-700">{formatCurrency(currentOrder.installation_fee ?? 0)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between px-4 py-3 bg-slate-50 font-semibold border-t border-slate-200">
+                      <span className="text-slate-800">Total</span>
+                      <span className="text-slate-900">{currentOrder.amount != null ? formatCurrency(currentOrder.amount) : "—"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delivery & Notes (from quotation) */}
+                {(currentOrder.delivery_location || currentOrder.estimated_delivery) && (
+                  <div className="mt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Truck className="h-3.5 w-3.5 text-slate-400" />
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Delivery & Notes</p>
+                    </div>
+                    <div className="space-y-1.5 text-sm rounded-lg border border-slate-200 bg-white px-4 py-3">
+                      {currentOrder.delivery_location && (
+                        <div className="flex justify-between gap-3">
+                          <span className="text-slate-500">Location</span>
+                          <span className="font-medium text-slate-800 text-right">{currentOrder.delivery_location}</span>
+                        </div>
+                      )}
+                      {currentOrder.estimated_delivery && (
+                        <div className="flex justify-between gap-3">
+                          <span className="text-slate-500">Est. Delivery</span>
+                          <span className="font-medium text-slate-800 text-right">{currentOrder.estimated_delivery}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )
+          })()}
 
           {/* Financials */}
           <section>
