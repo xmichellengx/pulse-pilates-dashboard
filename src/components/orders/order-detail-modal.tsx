@@ -420,7 +420,6 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
 
   function handleGeneratePDF(docType: "invoice" | "receipt") {
     if (docType === "receipt") {
-      // Pre-fill with the order's current delivery_date (or today if unset)
       setReceiptFields({
         delivery_date: currentOrder.delivery_date ?? new Date().toISOString().slice(0, 10),
       })
@@ -443,40 +442,80 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
     setShowReceiptForm(false)
     const newDate = receiptFields.delivery_date || null
 
-    // If the user changed the delivery_date, persist it to the order first
-    // so the same value flows through from-order on the next generation too.
-    if (newDate !== (currentOrder.delivery_date ?? null)) {
+    // Auto-derive warranty periods from delivery_date:
+    //   - Equipment body: 6 months from delivery
+    //   - Spring:         3 months from delivery
+    // Equipment-body dates are persisted to warranty_start_date / warranty_end_date
+    // so the modal's "Under warranty" check stays in sync. Spring is computed
+    // locally and injected into the PDF only.
+    let warrantyBodyStart: string | null = null
+    let warrantyBodyEnd: string | null = null
+    let warrantySpringEnd: string | null = null
+    if (newDate) {
+      try {
+        const start = new Date(newDate)
+        warrantyBodyStart = start.toISOString().slice(0, 10)
+        const bodyEnd = new Date(start)
+        bodyEnd.setMonth(bodyEnd.getMonth() + 6)
+        warrantyBodyEnd = bodyEnd.toISOString().slice(0, 10)
+        const springEnd = new Date(start)
+        springEnd.setMonth(springEnd.getMonth() + 3)
+        warrantySpringEnd = springEnd.toISOString().slice(0, 10)
+      } catch {
+        // ignore — fall through with nulls
+      }
+    }
+
+    // Persist delivery_date + auto-derived warranty dates to the order
+    const patch: Record<string, unknown> = {}
+    if (newDate !== (currentOrder.delivery_date ?? null)) patch.delivery_date = newDate
+    if (warrantyBodyStart && warrantyBodyStart !== (currentOrder.warranty_start_date ?? null)) {
+      patch.warranty_start_date = warrantyBodyStart
+    }
+    if (warrantyBodyEnd && warrantyBodyEnd !== (currentOrder.warranty_end_date ?? null)) {
+      patch.warranty_end_date = warrantyBodyEnd
+    }
+    if (Object.keys(patch).length > 0) {
       try {
         const res = await fetch(`/api/orders/${currentOrder.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ delivery_date: newDate }),
+          body: JSON.stringify(patch),
         })
         if (res.ok) {
-          const updated = { ...currentOrder, delivery_date: newDate }
+          const updated: Order = {
+            ...currentOrder,
+            ...(patch.delivery_date !== undefined ? { delivery_date: newDate } : {}),
+            ...(patch.warranty_start_date ? { warranty_start_date: warrantyBodyStart } : {}),
+            ...(patch.warranty_end_date ? { warranty_end_date: warrantyBodyEnd } : {}),
+          }
           setCurrentOrder(updated)
           setEditingOrder(updated)
           onUpdate?.(updated)
         }
       } catch (err) {
-        console.error("Failed to persist delivery_date:", err)
-        // Continue anyway — we'll still inject the date into the PDF below
+        console.error("Failed to persist receipt fields:", err)
+        // Continue anyway — we still inject values into the PDF below
       }
     }
 
     // Format dd/mm/yyyy for the PDF (matches formatBillDate in from-order)
-    let formattedDate: string | undefined
-    if (newDate) {
+    const fmtPdf = (iso: string | null): string | undefined => {
+      if (!iso) return undefined
       try {
-        const d = new Date(newDate)
-        formattedDate = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
+        const d = new Date(iso)
+        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
       } catch {
-        formattedDate = newDate
+        return iso
       }
     }
 
     await generateInvoicePDF("receipt", {
-      delivery_date: formattedDate,
+      delivery_date: fmtPdf(newDate),
+      warranty_body_start: fmtPdf(warrantyBodyStart),
+      warranty_body_end: fmtPdf(warrantyBodyEnd),
+      warranty_spring_start: fmtPdf(warrantyBodyStart),
+      warranty_spring_end: fmtPdf(warrantySpringEnd),
     })
   }
 
@@ -1593,7 +1632,8 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-200"
                 />
                 <p className="text-xs text-slate-400 mt-1">
-                  Saved to the order — will appear on this receipt and any future docs.
+                  Saved to the order. Warranty period is auto-calculated from this
+                  date: 6 months on equipment body, 3 months on spring.
                 </p>
               </div>
             </div>

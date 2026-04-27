@@ -316,6 +316,11 @@ export interface InvoicePDFInput {
   delivery_location?: string
   payment_date?: string
   buying_method?: string
+  // Warranty (used on receipts; auto-derived from delivery_date)
+  warranty_body_start?: string
+  warranty_body_end?: string
+  warranty_spring_start?: string
+  warranty_spring_end?: string
   // Rental specific
   rental_start_date?: string
   monthly_rental_amount?: number
@@ -349,6 +354,10 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
     delivery_location,
     payment_date,
     buying_method,
+    warranty_body_start,
+    warranty_body_end,
+    warranty_spring_start,
+    warranty_spring_end,
     rental_start_date,
     monthly_rental_amount,
     monthly_billing_date,
@@ -482,6 +491,30 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
             <Text style={s.sectionKey}>Delivery Location</Text>
             <Text style={s.sectionVal}>{": " + delivery_location}</Text>
           </View>
+        )}
+
+        {/* ── Warranty (auto-derived from delivery date for receipts) ── */}
+        {(warranty_body_start || warranty_spring_start) && (
+          <>
+            {warranty_body_start && warranty_body_end && (
+              <View style={s.sectionLine}>
+                <Text style={s.sectionKey}>Warranty (Body)</Text>
+                <Text style={s.sectionVal}>{`: ${warranty_body_start} – ${warranty_body_end} (6 months)`}</Text>
+              </View>
+            )}
+            {warranty_spring_start && warranty_spring_end && (
+              <View style={s.sectionLine}>
+                <Text style={s.sectionKey}>Warranty (Spring)</Text>
+                <Text style={s.sectionVal}>{`: ${warranty_spring_start} – ${warranty_spring_end} (3 months)`}</Text>
+              </View>
+            )}
+            <View style={s.sectionLine}>
+              <Text style={s.sectionKey}> </Text>
+              <Text style={[s.sectionVal, { fontStyle: "italic", color: "#555" }]}>
+                Covers manufacturer defect only. Damage from mishandling is not covered.
+              </Text>
+            </View>
+          </>
         )}
 
         {/* ── Payment or Rental Details ── */}
