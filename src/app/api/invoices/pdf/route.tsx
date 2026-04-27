@@ -462,7 +462,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
             <Text style={s.totalValBold}>{fmt(total)}</Text>
           </View>
           <View style={s.totalLine}>
-            <Text style={s.totalKey}>(-) Deposit (RM)</Text>
+            <Text style={s.totalKey}>{doc_type === "receipt" ? "(-) Amount Paid (RM)" : "(-) Deposit (RM)"}</Text>
             <Text style={s.totalVal}>{fmt(deposit)}</Text>
           </View>
           <View style={s.totalDivider} />
