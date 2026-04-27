@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { ShoppingCart } from "lucide-react"
+import { ShoppingCart, Plus } from "lucide-react"
+import Link from "next/link"
 import { OrdersTable } from "@/components/orders/orders-table"
 
 const PAGE_SIZE = 50
@@ -73,10 +74,17 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
             </div>
           </div>
         </div>
-        <div className="flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-3">
           <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-3 py-1 text-sm font-semibold text-slate-700">
             {total.toLocaleString()} orders
           </span>
+          <Link
+            href="/orders/new"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            New Order
+          </Link>
         </div>
       </div>
 
