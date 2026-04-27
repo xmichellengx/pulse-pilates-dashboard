@@ -210,6 +210,21 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
     setIsSaving(true)
     const combinedProduct = serializeLineItems(lineItems)
     const totalUnits = lineItems.filter((i) => i.name.trim()).reduce((s, i) => s + i.qty, 0)
+
+    // Sanitize discount/charge arrays — drop empty rows and coerce amounts to numbers
+    const cleanDiscounts = (editingOrder.discounts ?? [])
+      .map((d) => ({ label: (d?.label ?? "").trim(), amount: Number(d?.amount) || 0 }))
+      .filter((d) => d.label || d.amount > 0)
+    const cleanCharges = (editingOrder.additional_charges ?? [])
+      .map((c) => ({ label: (c?.label ?? "").trim(), amount: Number(c?.amount) || 0 }))
+      .filter((c) => c.label || c.amount > 0)
+
+    const toNumOrNull = (v: unknown): number | null => {
+      if (v === null || v === undefined || v === "") return null
+      const n = Number(v)
+      return Number.isFinite(n) ? n : null
+    }
+
     try {
       const res = await fetch(`/api/orders/${currentOrder.id}`, {
         method: "PATCH",
@@ -223,9 +238,9 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
           units: totalUnits || editingOrder.units,
           mode: editingOrder.mode,
           payment_type: editingOrder.payment_type,
-          amount: editingOrder.amount,
-          monthly_rental: editingOrder.monthly_rental,
-          balance: editingOrder.balance,
+          amount: toNumOrNull(editingOrder.amount),
+          monthly_rental: toNumOrNull(editingOrder.monthly_rental),
+          balance: toNumOrNull(editingOrder.balance),
           payment_date: editingOrder.payment_date,
           delivery_date: editingOrder.delivery_date,
           location: editingOrder.location,
@@ -238,12 +253,36 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
           remarks: editingOrder.remarks,
           warranty_start_date: editingOrder.warranty_start_date,
           warranty_end_date: editingOrder.warranty_end_date,
+          // Pricing breakdown
+          subtotal: toNumOrNull(editingOrder.subtotal),
+          delivery_fee: toNumOrNull(editingOrder.delivery_fee),
+          installation_fee: toNumOrNull(editingOrder.installation_fee),
+          discounts: cleanDiscounts,
+          additional_charges: cleanCharges,
+          // Delivery / studio / tier
+          delivery_location: editingOrder.delivery_location,
+          estimated_delivery: editingOrder.estimated_delivery,
+          studio_name: editingOrder.studio_name,
+          pricing_tier: editingOrder.pricing_tier,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Save failed")
-      const saved = { ...editingOrder, product_name: combinedProduct || editingOrder.product_name, units: totalUnits || editingOrder.units }
+      const saved: Order = {
+        ...editingOrder,
+        product_name: combinedProduct || editingOrder.product_name,
+        units: totalUnits || editingOrder.units,
+        amount: toNumOrNull(editingOrder.amount),
+        monthly_rental: toNumOrNull(editingOrder.monthly_rental),
+        balance: toNumOrNull(editingOrder.balance),
+        subtotal: toNumOrNull(editingOrder.subtotal),
+        delivery_fee: toNumOrNull(editingOrder.delivery_fee),
+        installation_fee: toNumOrNull(editingOrder.installation_fee),
+        discounts: cleanDiscounts,
+        additional_charges: cleanCharges,
+      }
       setCurrentOrder(saved)
+      setEditingOrder(saved)
       onUpdate?.(saved)
       setIsEditing(false)
       toast.success("Order updated")
@@ -623,6 +662,9 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
               <Field label="Customer Name" value={currentOrder.customer_name} editing={isEditing}>
                 {inp("customer_name")}
               </Field>
+              <Field label="Studio Name" value={currentOrder.studio_name ?? "—"} editing={isEditing}>
+                {inp("studio_name")}
+              </Field>
               {isEditing ? (
                 <div className="col-span-2 flex flex-col gap-0.5">
                   <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide">Products</dt>
@@ -674,10 +716,16 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                   {null}
                 </Field>
               )}
-              {currentOrder.pricing_tier && !isEditing && (
-                <Field label="Pricing Tier" value={currentOrder.pricing_tier} editing={false}>
-                  {null}
+              {isEditing ? (
+                <Field label="Pricing Tier" value={currentOrder.pricing_tier ?? "—"} editing={isEditing}>
+                  {sel("pricing_tier", ["retail", "p4b_t1", "p4b_t2"])}
                 </Field>
+              ) : (
+                currentOrder.pricing_tier && (
+                  <Field label="Pricing Tier" value={currentOrder.pricing_tier} editing={false}>
+                    {null}
+                  </Field>
+                )
               )}
             </dl>
           </section>
@@ -809,6 +857,240 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                     </div>
                   </div>
                 )}
+              </section>
+            )
+          })()}
+
+          {/* Editable Pricing Breakdown (edit mode only) */}
+          {isEditing && (() => {
+            const items = Array.isArray(editingOrder.items) ? editingOrder.items : []
+            const hasItems = items.length > 0
+            const computedSubtotal = hasItems
+              ? items.reduce((s, it) => s + ((Number(it.unit_price) || 0) + (Number(it.customisation_surcharge) || 0)) * (Number(it.qty) || 1), 0)
+              : (Number(editingOrder.subtotal) || 0)
+            const deliveryFee = Number(editingOrder.delivery_fee) || 0
+            const installationFee = Number(editingOrder.installation_fee) || 0
+            const discounts = Array.isArray(editingOrder.discounts) ? editingOrder.discounts : []
+            const charges = Array.isArray(editingOrder.additional_charges) ? editingOrder.additional_charges : []
+            const sumDiscounts = discounts.reduce((s, d) => s + (Number(d?.amount) || 0), 0)
+            const sumCharges = charges.reduce((s, c) => s + (Number(c?.amount) || 0), 0)
+            const computedTotal = computedSubtotal + deliveryFee + installationFee + sumCharges - sumDiscounts
+
+            const updateDiscount = (idx: number, patch: Partial<{ label: string; amount: number }>) => {
+              setEditingOrder((p) => {
+                const list = Array.isArray(p.discounts) ? [...p.discounts] : []
+                list[idx] = { ...(list[idx] ?? { label: "", amount: 0 }), ...patch }
+                return { ...p, discounts: list }
+              })
+            }
+            const updateCharge = (idx: number, patch: Partial<{ label: string; amount: number }>) => {
+              setEditingOrder((p) => {
+                const list = Array.isArray(p.additional_charges) ? [...p.additional_charges] : []
+                list[idx] = { ...(list[idx] ?? { label: "", amount: 0 }), ...patch }
+                return { ...p, additional_charges: list }
+              })
+            }
+            const removeDiscount = (idx: number) => {
+              setEditingOrder((p) => ({
+                ...p,
+                discounts: (Array.isArray(p.discounts) ? p.discounts : []).filter((_, i) => i !== idx),
+              }))
+            }
+            const removeCharge = (idx: number) => {
+              setEditingOrder((p) => ({
+                ...p,
+                additional_charges: (Array.isArray(p.additional_charges) ? p.additional_charges : []).filter((_, i) => i !== idx),
+              }))
+            }
+            const addDiscount = () => {
+              setEditingOrder((p) => ({
+                ...p,
+                discounts: [...(Array.isArray(p.discounts) ? p.discounts : []), { label: "", amount: 0 }],
+              }))
+            }
+            const addCharge = () => {
+              setEditingOrder((p) => ({
+                ...p,
+                additional_charges: [...(Array.isArray(p.additional_charges) ? p.additional_charges : []), { label: "", amount: 0 }],
+              }))
+            }
+
+            return (
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Receipt className="h-4 w-4 text-indigo-500" />
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pricing Breakdown</h3>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                  <div className="divide-y divide-slate-100">
+                    {/* Subtotal: auto if items, manual otherwise */}
+                    <div className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
+                      <span className="text-slate-500">
+                        Equipment subtotal
+                        {hasItems && <span className="ml-1.5 text-xs text-slate-400">(auto from items)</span>}
+                      </span>
+                      {hasItems ? (
+                        <span className="font-medium text-slate-700">{formatCurrency(computedSubtotal)}</span>
+                      ) : (
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editingOrder.subtotal ?? ""}
+                          onChange={(e) => setEditingOrder((p) => ({ ...p, subtotal: e.target.value === "" ? null : Number(e.target.value) }))}
+                          className="w-32 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 text-right focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                        />
+                      )}
+                    </div>
+
+                    {/* Discounts editor */}
+                    <div className="px-4 py-2.5">
+                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">Discounts</div>
+                      <div className="flex flex-col gap-2">
+                        {discounts.map((d, idx) => (
+                          <div key={`disc-${idx}`} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Discount label"
+                              value={d?.label ?? ""}
+                              onChange={(e) => updateDiscount(idx, { label: e.target.value })}
+                              className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                            />
+                            <input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={d?.amount ?? ""}
+                              onChange={(e) => updateDiscount(idx, { amount: e.target.value === "" ? 0 : Number(e.target.value) })}
+                              className="w-28 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 text-right focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeDiscount(idx)}
+                              className="flex h-7 w-7 items-center justify-center rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={addDiscount}
+                          className="flex items-center gap-1.5 self-start px-2 py-1 rounded-md border border-dashed border-slate-300 text-xs text-slate-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                        >
+                          <Plus className="h-3 w-3" /> Add discount
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Additional charges editor */}
+                    <div className="px-4 py-2.5">
+                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">Additional Charges</div>
+                      <div className="flex flex-col gap-2">
+                        {charges.map((c, idx) => (
+                          <div key={`charge-${idx}`} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Charge label"
+                              value={c?.label ?? ""}
+                              onChange={(e) => updateCharge(idx, { label: e.target.value })}
+                              className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                            />
+                            <input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={c?.amount ?? ""}
+                              onChange={(e) => updateCharge(idx, { amount: e.target.value === "" ? 0 : Number(e.target.value) })}
+                              className="w-28 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 text-right focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeCharge(idx)}
+                              className="flex h-7 w-7 items-center justify-center rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={addCharge}
+                          className="flex items-center gap-1.5 self-start px-2 py-1 rounded-md border border-dashed border-slate-300 text-xs text-slate-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                        >
+                          <Plus className="h-3 w-3" /> Add charge
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Delivery fee */}
+                    <div className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
+                      <span className="text-slate-500">Delivery</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingOrder.delivery_fee ?? ""}
+                        onChange={(e) => setEditingOrder((p) => ({ ...p, delivery_fee: e.target.value === "" ? null : Number(e.target.value) }))}
+                        className="w-32 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 text-right focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                      />
+                    </div>
+
+                    {/* Installation fee */}
+                    <div className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
+                      <span className="text-slate-500">Installation</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingOrder.installation_fee ?? ""}
+                        onChange={(e) => setEditingOrder((p) => ({ ...p, installation_fee: e.target.value === "" ? null : Number(e.target.value) }))}
+                        className="w-32 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 text-right focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Computed total + apply */}
+                <div className="mt-2 flex items-center justify-between text-xs px-1">
+                  <span className="text-slate-500">
+                    Computed total: <span className="font-semibold text-slate-700">{formatCurrency(computedTotal)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingOrder((p) => ({ ...p, amount: computedTotal }))}
+                    className="text-indigo-600 hover:text-indigo-700 hover:underline font-medium"
+                  >
+                    Apply to Amount
+                  </button>
+                </div>
+
+                {/* Delivery Notes editor */}
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Truck className="h-3.5 w-3.5 text-slate-400" />
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Delivery Notes</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">Delivery Location</label>
+                      <input
+                        type="text"
+                        value={editingOrder.delivery_location ?? ""}
+                        onChange={(e) => setEditingOrder((p) => ({ ...p, delivery_location: e.target.value || null }))}
+                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">Estimated Delivery</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 4-6 Working Weeks Upon Payment Confirmation"
+                        value={editingOrder.estimated_delivery ?? ""}
+                        onChange={(e) => setEditingOrder((p) => ({ ...p, estimated_delivery: e.target.value || null }))}
+                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                      />
+                    </div>
+                  </div>
+                </div>
               </section>
             )
           })()}

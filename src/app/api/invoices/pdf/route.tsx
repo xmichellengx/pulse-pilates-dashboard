@@ -239,6 +239,7 @@ const s = StyleSheet.create({
   importantBox: {
     marginTop: 14,
     paddingTop: 8,
+    paddingRight: 8,
   },
   importantTitle: {
     fontSize: 9,
@@ -251,6 +252,7 @@ const s = StyleSheet.create({
     color: "#333",
     marginBottom: 3,
     lineHeight: 1.45,
+    paddingRight: 4,
   },
   importantLabel: {
     fontFamily: "Helvetica-Bold",
@@ -258,18 +260,18 @@ const s = StyleSheet.create({
 
   // ── Footer ──
   bankLine: {
-    marginTop: 16,
-    paddingTop: 10,
+    marginTop: 10,
+    paddingTop: 6,
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
     color: "#111",
-    marginBottom: 10,
+    marginBottom: 6,
   },
   forPulse: {
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
     color: "#111",
-    marginBottom: 16,
+    marginBottom: 8,
   },
   issuedByLabel: {
     fontSize: 9,
@@ -463,10 +465,12 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
 
         {/* ── Delivery Details ── */}
         <Text style={s.sectionTitle}>Delivery Details</Text>
-        <View style={s.sectionLine}>
-          <Text style={s.sectionKey}>Delivery Date</Text>
-          <Text style={s.sectionVal}>{": " + (delivery_date || "")}</Text>
-        </View>
+        {delivery_date && (
+          <View style={s.sectionLine}>
+            <Text style={s.sectionKey}>Delivery Date</Text>
+            <Text style={s.sectionVal}>{": " + delivery_date}</Text>
+          </View>
+        )}
         {estimated_delivery && (
           <View style={s.sectionLine}>
             <Text style={s.sectionKey}>Est. Delivery</Text>
