@@ -218,6 +218,25 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
     const cleanCharges = (editingOrder.additional_charges ?? [])
       .map((c) => ({ label: (c?.label ?? "").trim(), amount: Number(c?.amount) || 0 }))
       .filter((c) => c.label || c.amount > 0)
+    // Sanitize equipment items — drop empty rows; coerce qty/prices
+    const cleanItems = (editingOrder.items ?? [])
+      .map((it) => ({
+        product_id: it.product_id,
+        product_name: (it.product_name ?? "").trim(),
+        qty: Math.max(1, Number(it.qty) || 1),
+        unit_price: Number(it.unit_price) || 0,
+        purchase_mode: it.purchase_mode,
+        custom_colour: !!it.custom_colour,
+        colour_name: it.colour_name?.trim() || "",
+        logo_engraving: !!it.logo_engraving,
+        engraving_notes: it.engraving_notes?.trim() || "",
+        customisation_surcharge: Number(it.customisation_surcharge) || 0,
+      }))
+      .filter((it) => it.product_name || it.unit_price > 0)
+    // Auto-recompute subtotal from items if any exist; otherwise honour manual input
+    const recomputedSubtotal = cleanItems.length > 0
+      ? cleanItems.reduce((s, it) => s + (it.unit_price + it.customisation_surcharge) * it.qty, 0)
+      : null
 
     const toNumOrNull = (v: unknown): number | null => {
       if (v === null || v === undefined || v === "") return null
@@ -254,11 +273,12 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
           warranty_start_date: editingOrder.warranty_start_date,
           warranty_end_date: editingOrder.warranty_end_date,
           // Pricing breakdown
-          subtotal: toNumOrNull(editingOrder.subtotal),
+          subtotal: recomputedSubtotal ?? toNumOrNull(editingOrder.subtotal),
           delivery_fee: toNumOrNull(editingOrder.delivery_fee),
           installation_fee: toNumOrNull(editingOrder.installation_fee),
           discounts: cleanDiscounts,
           additional_charges: cleanCharges,
+          items: cleanItems,
           // Delivery / studio / tier
           delivery_location: editingOrder.delivery_location,
           estimated_delivery: editingOrder.estimated_delivery,
@@ -275,11 +295,12 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
         amount: toNumOrNull(editingOrder.amount),
         monthly_rental: toNumOrNull(editingOrder.monthly_rental),
         balance: toNumOrNull(editingOrder.balance),
-        subtotal: toNumOrNull(editingOrder.subtotal),
+        subtotal: recomputedSubtotal ?? toNumOrNull(editingOrder.subtotal),
         delivery_fee: toNumOrNull(editingOrder.delivery_fee),
         installation_fee: toNumOrNull(editingOrder.installation_fee),
         discounts: cleanDiscounts,
         additional_charges: cleanCharges,
+        items: cleanItems,
       }
       setCurrentOrder(saved)
       setEditingOrder(saved)
@@ -914,6 +935,28 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                 additional_charges: [...(Array.isArray(p.additional_charges) ? p.additional_charges : []), { label: "", amount: 0 }],
               }))
             }
+            const updateItem = (idx: number, patch: Record<string, unknown>) => {
+              setEditingOrder((p) => {
+                const list = Array.isArray(p.items) ? [...p.items] : []
+                list[idx] = { ...(list[idx] ?? { product_name: "", qty: 1, unit_price: 0 }), ...patch }
+                return { ...p, items: list }
+              })
+            }
+            const removeItem = (idx: number) => {
+              setEditingOrder((p) => ({
+                ...p,
+                items: (Array.isArray(p.items) ? p.items : []).filter((_, i) => i !== idx),
+              }))
+            }
+            const addItem = () => {
+              setEditingOrder((p) => ({
+                ...p,
+                items: [
+                  ...(Array.isArray(p.items) ? p.items : []),
+                  { product_name: "", qty: 1, unit_price: 0, purchase_mode: "direct", custom_colour: false, colour_name: "", logo_engraving: false, engraving_notes: "", customisation_surcharge: 0 },
+                ],
+              }))
+            }
 
             return (
               <section>
@@ -924,6 +967,116 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
 
                 <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                   <div className="divide-y divide-slate-100">
+                    {/* Equipment items editor */}
+                    <div className="px-4 py-3">
+                      <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">Equipment</div>
+                      <div className="flex flex-col gap-2.5">
+                        {items.map((it, idx) => {
+                          const lineUnit = (Number(it.unit_price) || 0) + (Number(it.customisation_surcharge) || 0)
+                          const lineAmt = lineUnit * (Number(it.qty) || 1)
+                          return (
+                            <div key={`eq-${idx}`} className="rounded-lg border border-slate-200 bg-slate-50/40 p-2.5">
+                              <div className="flex items-start gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="Product name"
+                                  value={it.product_name ?? ""}
+                                  onChange={(e) => updateItem(idx, { product_name: e.target.value })}
+                                  className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                                />
+                                <input
+                                  type="number"
+                                  min={1}
+                                  placeholder="Qty"
+                                  value={it.qty ?? ""}
+                                  onChange={(e) => updateItem(idx, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
+                                  className="w-14 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 text-center focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                                />
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="Unit price"
+                                  value={it.unit_price ?? ""}
+                                  onChange={(e) => updateItem(idx, { unit_price: e.target.value === "" ? 0 : Number(e.target.value) })}
+                                  className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800 text-right focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeItem(idx)}
+                                  className="flex h-7 w-7 items-center justify-center rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!it.custom_colour}
+                                    onChange={(e) => updateItem(idx, { custom_colour: e.target.checked })}
+                                    className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-200"
+                                  />
+                                  <span className="text-xs text-slate-500">Custom colour</span>
+                                </div>
+                                {it.custom_colour && (
+                                  <input
+                                    type="text"
+                                    placeholder="Colour name"
+                                    value={it.colour_name ?? ""}
+                                    onChange={(e) => updateItem(idx, { colour_name: e.target.value })}
+                                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                                  />
+                                )}
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!it.logo_engraving}
+                                    onChange={(e) => updateItem(idx, { logo_engraving: e.target.checked })}
+                                    className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-200"
+                                  />
+                                  <span className="text-xs text-slate-500">Logo engraving</span>
+                                </div>
+                                {it.logo_engraving && (
+                                  <input
+                                    type="text"
+                                    placeholder="Engraving notes"
+                                    value={it.engraving_notes ?? ""}
+                                    onChange={(e) => updateItem(idx, { engraving_notes: e.target.value })}
+                                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                                  />
+                                )}
+                                {(it.custom_colour || it.logo_engraving) && (
+                                  <div className="col-span-2 flex items-center gap-2">
+                                    <span className="text-xs text-slate-500 whitespace-nowrap">Customisation surcharge</span>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      placeholder="0.00"
+                                      value={it.customisation_surcharge ?? ""}
+                                      onChange={(e) => updateItem(idx, { customisation_surcharge: e.target.value === "" ? 0 : Number(e.target.value) })}
+                                      className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 text-right focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              {(Number(it.qty) || 0) > 0 && (Number(it.unit_price) || 0) > 0 && (
+                                <div className="mt-2 flex justify-end text-xs text-slate-400">
+                                  Line total: <span className="ml-1 font-medium text-slate-600">{formatCurrency(lineAmt)}</span>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                        <button
+                          type="button"
+                          onClick={addItem}
+                          className="flex items-center gap-1.5 self-start px-2 py-1 rounded-md border border-dashed border-slate-300 text-xs text-slate-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                        >
+                          <Plus className="h-3 w-3" /> Add equipment item
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Subtotal: auto if items, manual otherwise */}
                     <div className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
                       <span className="text-slate-500">
