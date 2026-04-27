@@ -162,6 +162,10 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
   const [rentalFields, setRentalFields] = useState({ rental_start_date: "", monthly_billing_date: "", auto_debit_effective_date: "" })
   const [generatingRental, setGeneratingRental] = useState(false)
 
+  // Receipt form state — lets the user set/override delivery_date before generating
+  const [showReceiptForm, setShowReceiptForm] = useState(false)
+  const [receiptFields, setReceiptFields] = useState({ delivery_date: "" })
+
   const isRentalOrder = (currentOrder.mode ?? "").toLowerCase().includes("rental")
 
   // Get current user on mount
@@ -330,6 +334,14 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
   }
 
   function handleGeneratePDF(docType: "invoice" | "receipt") {
+    if (docType === "receipt") {
+      // Pre-fill with the order's current delivery_date (or today if unset)
+      setReceiptFields({
+        delivery_date: currentOrder.delivery_date ?? new Date().toISOString().slice(0, 10),
+      })
+      setShowReceiptForm(true)
+      return
+    }
     generateInvoicePDF(docType)
   }
 
@@ -339,6 +351,47 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
       rental_start_date: rentalFields.rental_start_date || undefined,
       monthly_billing_date: rentalFields.monthly_billing_date || undefined,
       auto_debit_effective_date: rentalFields.auto_debit_effective_date || undefined,
+    })
+  }
+
+  async function handleGenerateReceipt() {
+    setShowReceiptForm(false)
+    const newDate = receiptFields.delivery_date || null
+
+    // If the user changed the delivery_date, persist it to the order first
+    // so the same value flows through from-order on the next generation too.
+    if (newDate !== (currentOrder.delivery_date ?? null)) {
+      try {
+        const res = await fetch(`/api/orders/${currentOrder.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ delivery_date: newDate }),
+        })
+        if (res.ok) {
+          const updated = { ...currentOrder, delivery_date: newDate }
+          setCurrentOrder(updated)
+          setEditingOrder(updated)
+          onUpdate?.(updated)
+        }
+      } catch (err) {
+        console.error("Failed to persist delivery_date:", err)
+        // Continue anyway — we'll still inject the date into the PDF below
+      }
+    }
+
+    // Format dd/mm/yyyy for the PDF (matches formatBillDate in from-order)
+    let formattedDate: string | undefined
+    if (newDate) {
+      try {
+        const d = new Date(newDate)
+        formattedDate = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
+      } catch {
+        formattedDate = newDate
+      }
+    }
+
+    await generateInvoicePDF("receipt", {
+      delivery_date: formattedDate,
     })
   }
 
@@ -1027,6 +1080,56 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
               >
                 {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Delete Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Receipt details form ── */}
+      {showReceiptForm && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowReceiptForm(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-emerald-100 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
+                <FileText className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Receipt Details</h3>
+                <p className="text-xs text-slate-500">{currentOrder.customer_name} · {currentOrder.case_code ?? "No order #"}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Delivery Date</label>
+                <input
+                  type="date"
+                  value={receiptFields.delivery_date}
+                  onChange={(e) => setReceiptFields(p => ({ ...p, delivery_date: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-200"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Saved to the order — will appear on this receipt and any future docs.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setShowReceiptForm(false)}
+                className="flex-1 h-9 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGenerateReceipt}
+                disabled={generatingReceipt}
+                className="flex-1 h-9 rounded-lg bg-emerald-600 text-sm text-white font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {generatingReceipt ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Generate Receipt
               </button>
             </div>
           </div>
