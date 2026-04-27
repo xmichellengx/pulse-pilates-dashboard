@@ -22,6 +22,7 @@ import {
   Receipt,
   Building2,
   Truck,
+  Send,
 } from "lucide-react"
 import type { Order } from "./orders-table"
 import { formatCurrency } from "@/lib/utils"
@@ -147,6 +148,7 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
+  const [togglingInvoiceSent, setTogglingInvoiceSent] = useState(false)
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
   const [generatingReceipt, setGeneratingReceipt] = useState(false)
   const [currentUserName, setCurrentUserName] = useState("Aisy")
@@ -334,6 +336,29 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
       toast.error(err instanceof Error ? err.message : "Failed to update status")
     } finally {
       setUpdatingStatus(null)
+    }
+  }
+
+  async function handleInvoiceSentToggle() {
+    const next = !currentOrder.invoice_sent
+    setTogglingInvoiceSent(true)
+    try {
+      const res = await fetch(`/api/orders/${currentOrder.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoice_sent: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Update failed")
+      const updated = { ...currentOrder, invoice_sent: next }
+      setCurrentOrder(updated)
+      setEditingOrder(updated)
+      onUpdate?.(updated)
+      toast.success(next ? "Marked as Invoice Sent" : "Invoice Sent unmarked")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update invoice status")
+    } finally {
+      setTogglingInvoiceSent(false)
     }
   }
 
@@ -602,7 +627,7 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
               {/* Quick status update */}
               <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Quick Status Update</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {QUICK_STATUSES.map((s) => {
                     const isActive = currentOrder.status === s
                     const isLoading = updatingStatus === s
@@ -627,6 +652,28 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                       </button>
                     )
                   })}
+
+                  {/* Divider — invoice_sent is independent of the mutually-exclusive status */}
+                  <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+
+                  {/* Invoice Sent toggle (retainable; co-active with any status) */}
+                  <button
+                    onClick={handleInvoiceSentToggle}
+                    disabled={togglingInvoiceSent}
+                    title={currentOrder.invoice_sent ? "Click to unmark Invoice Sent" : "Mark as Invoice Sent"}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all disabled:opacity-60 ${
+                      currentOrder.invoice_sent
+                        ? "bg-indigo-500 text-white border-indigo-500"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {togglingInvoiceSent
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : currentOrder.invoice_sent
+                        ? <Check className="h-3 w-3" />
+                        : <Send className="h-3 w-3" />}
+                    Invoice Sent
+                  </button>
                 </div>
               </div>
 
