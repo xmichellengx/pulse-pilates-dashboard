@@ -310,6 +310,8 @@ export interface InvoicePDFInput {
   deposit: number
   balance: number
   delivery_date?: string
+  estimated_delivery?: string
+  delivery_location?: string
   payment_date?: string
   buying_method?: string
   // Rental specific
@@ -341,6 +343,8 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
     deposit,
     balance,
     delivery_date,
+    estimated_delivery,
+    delivery_location,
     payment_date,
     buying_method,
     rental_start_date,
@@ -463,6 +467,18 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
           <Text style={s.sectionKey}>Delivery Date</Text>
           <Text style={s.sectionVal}>{": " + (delivery_date || "")}</Text>
         </View>
+        {estimated_delivery && (
+          <View style={s.sectionLine}>
+            <Text style={s.sectionKey}>Est. Delivery</Text>
+            <Text style={s.sectionVal}>{": " + estimated_delivery}</Text>
+          </View>
+        )}
+        {delivery_location && (
+          <View style={s.sectionLine}>
+            <Text style={s.sectionKey}>Delivery Location</Text>
+            <Text style={s.sectionVal}>{": " + delivery_location}</Text>
+          </View>
+        )}
 
         {/* ── Payment or Rental Details ── */}
         {isRental ? (

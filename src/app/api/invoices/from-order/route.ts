@@ -222,6 +222,12 @@ export async function GET(req: Request) {
     deposit,
     balance,
     delivery_date: order.delivery_date ? formatBillDate(order.delivery_date) : undefined,
+    estimated_delivery: typeof order.estimated_delivery === "string" && order.estimated_delivery.trim()
+      ? order.estimated_delivery.trim()
+      : undefined,
+    delivery_location: typeof order.delivery_location === "string" && order.delivery_location.trim()
+      ? order.delivery_location.trim()
+      : undefined,
     payment_date: order.payment_date ? formatBillDate(order.payment_date) : undefined,
     buying_method: order.mode ?? undefined,
     // Rental fields — rental_start_date / monthly_billing_date / auto_debit_effective_date
