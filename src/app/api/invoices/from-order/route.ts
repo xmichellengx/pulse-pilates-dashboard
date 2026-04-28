@@ -92,7 +92,11 @@ export async function GET(req: Request) {
     ? `INV-${order.case_code}`
     : `INV-${String(order.id).slice(0, 8).toUpperCase()}`
 
-  const billDate = formatBillDate(order.payment_date ?? order.created_at)
+  // Bill Date = the date the document is generated (today), not when the
+  // order was created or paid. The actual payment_date still shows in the
+  // Payment Details section below for invoices/receipts. Passing null to
+  // formatBillDate falls through to "now" formatted as dd/mm/yyyy.
+  const billDate = formatBillDate(null)
 
   // ── Detect stored breakdown ──────────────────────────────────────────────────
   const storedItems = isStoredOrderItemArray(order.items) ? order.items : null
