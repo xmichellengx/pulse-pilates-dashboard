@@ -143,7 +143,7 @@ function buildWAText(
   subtotal: number,
   isRental: boolean
 ): string {
-  const totalEquipment = items.reduce((s, i) => s + i.unit_price * i.qty + i.customisation_surcharge, 0)
+  const totalEquipment = items.reduce((s, i) => s + (i.unit_price + i.customisation_surcharge) * i.qty, 0)
   const total = totalEquipment + values.delivery_fee + values.installation_fee
   const currency = values.market === "SG" ? "SGD" : "RM"
 
@@ -278,8 +278,9 @@ function LineItemRow({
   const selectedProduct = products.find((p) => p.id === item.product_id)
   const canRent = !!selectedProduct
 
-  const lineSubtotal =
-    item.unit_price * item.qty + item.customisation_surcharge
+  // Surcharge is per-unit (matches PDF rendering and the order-detail flow):
+  // e.g. qty 2 with colour customisation @ RM 300 → RM 600 of customisation, not RM 300.
+  const lineSubtotal = (item.unit_price + item.customisation_surcharge) * item.qty
 
   function handleProductChange(productId: string) {
     const product = products.find((p) => p.id === productId)
@@ -484,7 +485,7 @@ function LineItemRow({
           <span className="text-xs text-slate-500">
             {currency} {item.unit_price.toLocaleString()} × {item.qty}
             {item.customisation_surcharge > 0 && (
-              <> + {currency} {item.customisation_surcharge} customisation</>
+              <> + {currency} {item.customisation_surcharge.toLocaleString()} customisation × {item.qty}</>
             )}
           </span>
           <span className="text-sm font-semibold text-slate-800">
@@ -642,15 +643,31 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
   }, [market, setValue])
 
 
-  // Update unit prices when market/tier changes
+  // Update unit prices AND recompute customisation surcharges when market/tier
+  // changes — customisation pricing differs per tier (e.g. P4B T1 is free), so
+  // a previously-checked surcharge must be re-derived from the new tier.
   useEffect(() => {
+    const customPrices = (() => {
+      if (pricingTier === "p4b_t1") return { colour: 0, logo: 0 }
+      if (market === "SG") return { colour: 150, logo: 175 }
+      if (pricingTier === "p4b_t2") return { colour: 100, logo: 150 }
+      return { colour: 300, logo: 350 }
+    })()
     setLineItems((prev) =>
       prev.map((item) => {
         if (!item.product_id) return item
         const product = products.find((p) => p.id === item.product_id)
-        if (!product) return item
-        if (item.purchase_mode === "rental") return item
-        return { ...item, unit_price: getUnitPrice(product, market, pricingTier) }
+        const newUnitPrice =
+          item.purchase_mode === "rental" || !product
+            ? item.unit_price
+            : getUnitPrice(product, market, pricingTier)
+        const newSurcharge =
+          (item.custom_colour ? customPrices.colour : 0) +
+          (item.logo_engraving ? customPrices.logo : 0)
+        if (newUnitPrice === item.unit_price && newSurcharge === item.customisation_surcharge) {
+          return item
+        }
+        return { ...item, unit_price: newUnitPrice, customisation_surcharge: newSurcharge }
       })
     )
   }, [market, pricingTier, products])
@@ -658,7 +675,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
   const currency = market === "SG" ? "SGD" : "RM"
 
   const subtotal = lineItems.reduce(
-    (s, i) => s + i.unit_price * i.qty + i.customisation_surcharge,
+    (s, i) => s + (i.unit_price + i.customisation_surcharge) * i.qty,
     0
   )
   const totalDiscount = discounts.reduce((s, d) => s + (d.amount || 0), 0)
@@ -1038,7 +1055,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
                             )}
                           </span>
                           <span className="font-medium">
-                            {currency} {(item.unit_price * item.qty + item.customisation_surcharge).toLocaleString()}
+                            {currency} {((item.unit_price + item.customisation_surcharge) * item.qty).toLocaleString()}
                           </span>
                         </div>
                       ))}
@@ -1306,7 +1323,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
                     </p>
                   </div>
                   <span className="font-semibold text-slate-800">
-                    {currency} {(item.unit_price * item.qty + item.customisation_surcharge).toLocaleString()}
+                    {currency} {((item.unit_price + item.customisation_surcharge) * item.qty).toLocaleString()}
                   </span>
                 </div>
               ))}

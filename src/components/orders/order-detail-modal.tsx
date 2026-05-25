@@ -842,6 +842,12 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
             const items = Array.isArray(currentOrder.items) ? currentOrder.items : []
             const discounts = Array.isArray(currentOrder.discounts) ? currentOrder.discounts : []
             const additionalCharges = Array.isArray(currentOrder.additional_charges) ? currentOrder.additional_charges : []
+            // Recompute subtotal from items so it always matches the per-unit
+            // line totals shown below; fall back to stored subtotal for legacy
+            // orders that have no items array.
+            const computedSubtotal = items.length > 0
+              ? items.reduce((s, i) => s + ((Number(i.unit_price) || 0) + (Number(i.customisation_surcharge) || 0)) * (Number(i.qty) || 1), 0)
+              : currentOrder.subtotal
             const hasBreakdown =
               currentOrder.subtotal != null ||
               (currentOrder.delivery_fee ?? 0) > 0 ||
@@ -861,7 +867,7 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                 {items.length > 0 && (
                   <div className="space-y-2 mb-3">
                     {items.map((item, idx) => {
-                      const lineTotal = (item.unit_price ?? 0) * (item.qty ?? 1)
+                      const lineTotal = ((item.unit_price ?? 0) + (item.customisation_surcharge ?? 0)) * (item.qty ?? 1)
                       return (
                         <div key={idx} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                           <div className="flex-1 min-w-0">
@@ -888,7 +894,7 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                             <div className="text-sm font-semibold text-slate-800">{formatCurrency(lineTotal)}</div>
                             {(item.customisation_surcharge ?? 0) > 0 && (
                               <div className="text-xs text-slate-400 mt-0.5">
-                                +{formatCurrency(item.customisation_surcharge ?? 0)} custom
+                                +{formatCurrency(item.customisation_surcharge ?? 0)} custom each
                               </div>
                             )}
                             <div className="text-xs text-slate-400 mt-0.5">
@@ -904,10 +910,10 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                 {/* Totals */}
                 <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                   <div className="divide-y divide-slate-100">
-                    {currentOrder.subtotal != null && (
+                    {computedSubtotal != null && (
                       <div className="flex justify-between px-4 py-2.5 text-sm">
                         <span className="text-slate-500">Equipment subtotal</span>
-                        <span className="font-medium text-slate-700">{formatCurrency(currentOrder.subtotal)}</span>
+                        <span className="font-medium text-slate-700">{formatCurrency(computedSubtotal)}</span>
                       </div>
                     )}
                     {discounts.filter(d => (d?.amount ?? 0) > 0).map((d, i) => (
