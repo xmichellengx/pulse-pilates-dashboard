@@ -363,6 +363,54 @@ Please confirm and we will coordinate with our delivery team.`
   )
 }
 
+// Re-encode large images as JPEG bound to MAX_DIMENSION on the longest
+// edge before upload. Skip PDFs (no client-side compressor) and HEIC
+// (Chrome/Firefox can't decode it; let Supabase store the original so
+// Safari users aren't broken).
+const MAX_DIMENSION = 1600
+const JPEG_QUALITY = 0.82
+const COMPRESS_BELOW_BYTES = 200 * 1024 // < ~200KB is already fine
+
+async function compressImageIfNeeded(file: File): Promise<File> {
+  if (file.size <= COMPRESS_BELOW_BYTES) return file
+  if (!file.type.startsWith("image/")) return file
+  if (file.type === "image/heic" || file.type === "image/heif") return file
+
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result as string)
+    r.onerror = () => reject(new Error("read failed"))
+    r.readAsDataURL(file)
+  })
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image()
+    i.onload = () => resolve(i)
+    i.onerror = () => reject(new Error("decode failed"))
+    i.src = dataUrl
+  })
+
+  const longest = Math.max(img.width, img.height)
+  const scale = longest > MAX_DIMENSION ? MAX_DIMENSION / longest : 1
+  const w = Math.round(img.width * scale)
+  const h = Math.round(img.height * scale)
+
+  const canvas = document.createElement("canvas")
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return file
+  ctx.drawImage(img, 0, 0, w, h)
+
+  const blob: Blob | null = await new Promise((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY)
+  )
+  if (!blob || blob.size >= file.size) return file
+
+  const baseName = file.name.replace(/\.[^.]+$/, "")
+  return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" })
+}
+
 type DocType = "payex_proof" | "customer_id" | "leasing_contract"
 
 const DOC_FIELD: Record<DocType, "payex_proof_url" | "customer_id_url" | "leasing_contract_url"> = {
@@ -395,9 +443,10 @@ function DocumentsModal({
   const [current, setCurrent] = useState<RentalOrder>(rental)
   const [busy, setBusy] = useState<DocType | "b2b" | null>(null)
 
-  async function handleUpload(type: DocType, file: File) {
+  async function handleUpload(type: DocType, rawFile: File) {
     setBusy(type)
     try {
+      const file = await compressImageIfNeeded(rawFile).catch(() => rawFile)
       const fd = new FormData()
       fd.append("type", type)
       fd.append("file", file)

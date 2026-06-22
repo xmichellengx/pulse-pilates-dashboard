@@ -71,6 +71,7 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
   const [filterDate, setFilterDate] = useState("")
   const [filterAgent, setFilterAgent] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [outcomeFilter, setOutcomeFilter] = useState<Set<string>>(new Set())
   const [editingNotes, setEditingNotes] = useState<string | null>(null) // call id being edited
   const [notesValue, setNotesValue] = useState("")
 
@@ -128,6 +129,7 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
   const filteredCalls = calls.filter((c) => {
     if (filterDate && c.date !== filterDate) return false
     if (filterAgent !== "all" && c.agent !== filterAgent) return false
+    if (outcomeFilter.size > 0 && !outcomeFilter.has(c.outcome ?? "")) return false
     if (trimmedQuery) {
       const phoneDigits = c.phone ? normalisePhone(c.phone) : ""
       const nameLower = (c.customer_name ?? "").toLowerCase()
@@ -137,6 +139,24 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
     }
     return true
   })
+
+  function toggleOutcome(outcome: string) {
+    setOutcomeFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(outcome)) next.delete(outcome)
+      else next.add(outcome)
+      return next
+    })
+  }
+
+  // Quick presets — common follow-up workflows. Each replaces the active set.
+  const FOLLOW_UP_PRESET = ["Followed Up", "Callback", "Lukewarm"]
+  const NEEDS_OUTREACH_PRESET = ["No Answer", "Callback"]
+  const QUOTED_OPEN_PRESET = ["Quoted", "Followed Up"]
+  const outcomeCounts = OUTCOMES.reduce<Record<string, number>>((acc, o) => {
+    acc[o] = calls.filter((c) => c.outcome === o).length
+    return acc
+  }, {})
 
   const uniqueAgents = [...new Set(calls.map((c) => c.agent).filter(Boolean))]
 
@@ -332,9 +352,9 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
             </option>
           ))}
         </select>
-        {(filterDate || filterAgent !== "all" || searchQuery) && (
+        {(filterDate || filterAgent !== "all" || searchQuery || outcomeFilter.size > 0) && (
           <button
-            onClick={() => { setFilterDate(""); setFilterAgent("all"); setSearchQuery("") }}
+            onClick={() => { setFilterDate(""); setFilterAgent("all"); setSearchQuery(""); setOutcomeFilter(new Set()) }}
             className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
           >
             Clear filters
@@ -343,6 +363,70 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
         <span className="text-xs text-slate-400 ml-auto">
           {filteredCalls.length} call{filteredCalls.length !== 1 ? "s" : ""}
         </span>
+      </div>
+
+      {/* Outcome filter pills + presets */}
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 -mt-2 shadow-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Outcome</span>
+          <div className="flex items-center gap-1 ml-2">
+            <button
+              type="button"
+              onClick={() => setOutcomeFilter(new Set(FOLLOW_UP_PRESET))}
+              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+            >
+              Follow-ups
+            </button>
+            <span className="text-slate-300">·</span>
+            <button
+              type="button"
+              onClick={() => setOutcomeFilter(new Set(NEEDS_OUTREACH_PRESET))}
+              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+            >
+              Needs outreach
+            </button>
+            <span className="text-slate-300">·</span>
+            <button
+              type="button"
+              onClick={() => setOutcomeFilter(new Set(QUOTED_OPEN_PRESET))}
+              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+            >
+              Open quotes
+            </button>
+          </div>
+          {outcomeFilter.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setOutcomeFilter(new Set())}
+              className="ml-auto text-[11px] font-medium text-slate-400 hover:text-slate-600"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {OUTCOMES.map((outcome) => {
+            const colors = OUTCOME_COLORS[outcome]
+            const active = outcomeFilter.has(outcome)
+            const count = outcomeCounts[outcome] ?? 0
+            return (
+              <button
+                key={outcome}
+                type="button"
+                onClick={() => toggleOutcome(outcome)}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-md border text-xs font-medium transition-all",
+                  active
+                    ? cn(colors.bg, colors.text, colors.border, "ring-2 ring-offset-1 ring-slate-300")
+                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                )}
+              >
+                {outcome}
+                <span className={cn("text-[10px] font-semibold px-1 rounded", active ? "bg-white/60" : "bg-slate-100 text-slate-500")}>{count}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Calls table */}
