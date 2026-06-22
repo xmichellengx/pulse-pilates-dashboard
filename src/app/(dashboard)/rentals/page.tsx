@@ -7,7 +7,7 @@ export default async function RentalsPage() {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, case_code, customer_name, phone, email, product_name, monthly_rental, delivery_date, status, payex_status, balance, equipment_price"
+      "id, case_code, customer_name, phone, email, product_name, monthly_rental, delivery_date, status, payex_status, balance, equipment_price, is_b2b, payex_proof_url, customer_id_url, leasing_contract_url"
     )
     .ilike("mode", "%ental%")
     .in("status", ["Delivered", "Pending Delivered"])
@@ -30,6 +30,10 @@ export default async function RentalsPage() {
     payex_status: row.payex_status ?? null,
     balance: row.balance ?? null,
     equipment_price: row.equipment_price ?? null,
+    is_b2b: row.is_b2b ?? false,
+    payex_proof_url: row.payex_proof_url ?? null,
+    customer_id_url: row.customer_id_url ?? null,
+    leasing_contract_url: row.leasing_contract_url ?? null,
   }))
 
   return (

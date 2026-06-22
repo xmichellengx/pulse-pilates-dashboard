@@ -10,7 +10,14 @@ import {
   Check,
   X,
   CalendarClock,
+  FileText,
+  Upload,
+  Eye,
+  Trash2,
+  Loader2,
+  Building2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { formatDate } from "@/lib/utils"
 
@@ -27,6 +34,10 @@ export type RentalOrder = {
   payex_status: string | null
   balance: number | null
   equipment_price: number | null
+  is_b2b: boolean
+  payex_proof_url: string | null
+  customer_id_url: string | null
+  leasing_contract_url: string | null
 }
 
 interface RentalsClientProps {
@@ -352,10 +363,257 @@ Please confirm and we will coordinate with our delivery team.`
   )
 }
 
+type DocType = "payex_proof" | "customer_id" | "leasing_contract"
+
+const DOC_FIELD: Record<DocType, "payex_proof_url" | "customer_id_url" | "leasing_contract_url"> = {
+  payex_proof: "payex_proof_url",
+  customer_id: "customer_id_url",
+  leasing_contract: "leasing_contract_url",
+}
+
+const DOC_LABEL: Record<DocType, string> = {
+  payex_proof: "PayEx setup screenshot",
+  customer_id: "Customer IC / Passport",
+  leasing_contract: "Leasing contract",
+}
+
+const DOC_ACCEPT: Record<DocType, string> = {
+  payex_proof: "image/png,image/jpeg,image/webp,image/heic",
+  customer_id: "image/png,image/jpeg,image/webp,image/heic,application/pdf",
+  leasing_contract: "application/pdf,image/png,image/jpeg,image/webp",
+}
+
+function DocumentsModal({
+  rental,
+  onClose,
+  onUpdated,
+}: {
+  rental: RentalOrder
+  onClose: () => void
+  onUpdated: (rental: RentalOrder) => void
+}) {
+  const [current, setCurrent] = useState<RentalOrder>(rental)
+  const [busy, setBusy] = useState<DocType | "b2b" | null>(null)
+
+  async function handleUpload(type: DocType, file: File) {
+    setBusy(type)
+    try {
+      const fd = new FormData()
+      fd.append("type", type)
+      fd.append("file", file)
+      const res = await fetch(`/api/orders/${current.id}/documents`, {
+        method: "POST",
+        body: fd,
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "Upload failed" }))
+        throw new Error(error || "Upload failed")
+      }
+      const { path } = await res.json()
+      const next = { ...current, [DOC_FIELD[type]]: path } as RentalOrder
+      setCurrent(next)
+      onUpdated(next)
+      toast.success(`${DOC_LABEL[type]} uploaded`)
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : "Upload failed")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleView(type: DocType) {
+    setBusy(type)
+    try {
+      const res = await fetch(`/api/orders/${current.id}/documents?type=${type}`)
+      if (!res.ok) throw new Error("Failed to load file")
+      const { url } = await res.json()
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : "Failed to load file")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleDelete(type: DocType) {
+    if (!confirm(`Delete the ${DOC_LABEL[type].toLowerCase()}?`)) return
+    setBusy(type)
+    try {
+      const res = await fetch(`/api/orders/${current.id}/documents?type=${type}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) throw new Error("Delete failed")
+      const next = { ...current, [DOC_FIELD[type]]: null } as RentalOrder
+      setCurrent(next)
+      onUpdated(next)
+      toast.success(`${DOC_LABEL[type]} removed`)
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : "Delete failed")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleToggleB2B(next: boolean) {
+    setBusy("b2b")
+    const previous = current.is_b2b
+    setCurrent({ ...current, is_b2b: next })
+    try {
+      const res = await fetch(`/api/orders/${current.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_b2b: next }),
+      })
+      if (!res.ok) throw new Error("Update failed")
+      const updated = { ...current, is_b2b: next }
+      onUpdated(updated)
+    } catch (err) {
+      console.error(err)
+      setCurrent({ ...current, is_b2b: previous })
+      toast.error(err instanceof Error ? err.message : "Update failed")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const slots: DocType[] = current.is_b2b
+    ? ["payex_proof", "customer_id", "leasing_contract"]
+    : ["payex_proof", "customer_id"]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-lg mx-4 rounded-2xl bg-white shadow-2xl border border-slate-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Rental documents</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{current.customer_name}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <label className="flex items-center gap-2.5 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={current.is_b2b}
+              onChange={(e) => handleToggleB2B(e.target.checked)}
+              disabled={busy === "b2b"}
+              className="h-4 w-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-400"
+            />
+            <Building2 className="h-4 w-4 text-slate-500" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-slate-800">B2B rental</p>
+              <p className="text-xs text-slate-500">Show leasing-contract slot for business customers.</p>
+            </div>
+            {busy === "b2b" && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+          </label>
+
+          {slots.map((type) => {
+            const path = current[DOC_FIELD[type]]
+            const isBusy = busy === type
+            const inputId = `doc-${type}-${current.id}`
+            return (
+              <div key={type} className="rounded-xl border border-slate-200 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText className="h-4 w-4 text-indigo-500" />
+                  <span className="text-sm font-semibold text-slate-800">{DOC_LABEL[type]}</span>
+                  {path && (
+                    <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                      <Check className="h-3 w-3" />
+                      Uploaded
+                    </span>
+                  )}
+                </div>
+
+                {path ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleView(type)}
+                      disabled={isBusy}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60"
+                    >
+                      {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                      View
+                    </button>
+                    <label
+                      htmlFor={inputId}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Replace
+                    </label>
+                    <input
+                      id={inputId}
+                      type="file"
+                      accept={DOC_ACCEPT[type]}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) handleUpload(type, f)
+                        e.target.value = ""
+                      }}
+                      disabled={isBusy}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(type)}
+                      disabled={isBusy}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors ml-auto disabled:opacity-60"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor={inputId}
+                    className="flex items-center justify-center gap-2 h-9 rounded-lg border border-dashed border-slate-300 text-xs font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors cursor-pointer"
+                  >
+                    {isBusy ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    {isBusy ? "Uploading…" : "Upload file"}
+                    <input
+                      id={inputId}
+                      type="file"
+                      accept={DOC_ACCEPT[type]}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) handleUpload(type, f)
+                        e.target.value = ""
+                      }}
+                      disabled={isBusy}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+            )
+          })}
+
+          <p className="text-xs text-slate-400 text-center">Max 10MB · JPG, PNG, WEBP, HEIC, PDF</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
   const [rentals, setRentals] = useState<RentalOrder[]>(initialRentals)
   const [conversionTarget, setConversionTarget] = useState<RentalOrder | null>(null)
   const [terminationTarget, setTerminationTarget] = useState<RentalOrder | null>(null)
+  const [documentsTarget, setDocumentsTarget] = useState<RentalOrder | null>(null)
 
   function handleConverted(id: string) {
     setRentals((prev) => prev.filter((r) => r.id !== id))
@@ -363,6 +621,10 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
 
   function handleTerminated(id: string) {
     setRentals((prev) => prev.filter((r) => r.id !== id))
+  }
+
+  function handleRentalUpdated(updated: RentalOrder) {
+    setRentals((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
   }
 
   // Stats calculations
@@ -418,6 +680,16 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
           rental={terminationTarget}
           onClose={() => setTerminationTarget(null)}
           onTerminated={handleTerminated}
+        />
+      )}
+      {documentsTarget && (
+        <DocumentsModal
+          rental={documentsTarget}
+          onClose={() => setDocumentsTarget(null)}
+          onUpdated={(r) => {
+            handleRentalUpdated(r)
+            setDocumentsTarget(r)
+          }}
         />
       )}
 
@@ -509,7 +781,15 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
                   return (
                     <tr key={rental.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-4 py-3.5">
-                        <div className="font-semibold text-slate-800 leading-tight">{rental.customer_name}</div>
+                        <div className="flex items-center gap-1.5 leading-tight">
+                          <span className="font-semibold text-slate-800">{rental.customer_name}</span>
+                          {rental.is_b2b && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 border border-violet-100">
+                              <Building2 className="h-2.5 w-2.5" />
+                              B2B
+                            </span>
+                          )}
+                        </div>
                         {rental.phone && (
                           <div className="text-xs text-slate-400 mt-0.5">{rental.phone}</div>
                         )}
@@ -547,6 +827,27 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1.5">
+                          {(() => {
+                            const required: Array<keyof RentalOrder> = rental.is_b2b
+                              ? ["payex_proof_url", "customer_id_url", "leasing_contract_url"]
+                              : ["payex_proof_url", "customer_id_url"]
+                            const filled = required.filter((k) => rental[k]).length
+                            const complete = filled === required.length
+                            return (
+                              <button
+                                onClick={() => setDocumentsTarget(rental)}
+                                className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-xs font-medium transition-colors border ${
+                                  complete
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100"
+                                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                                title={`${filled} of ${required.length} documents uploaded`}
+                              >
+                                <FileText className="h-3 w-3" />
+                                Docs {filled}/{required.length}
+                              </button>
+                            )
+                          })()}
                           <button
                             onClick={() => setConversionTarget(rental)}
                             className="inline-flex items-center h-7 px-2.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-medium hover:bg-indigo-100 transition-colors border border-indigo-100"

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select"
 import { formatDate } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { Phone, Loader2, Filter, TrendingUp, Calendar, CheckCircle2, Pencil, Check, X } from "lucide-react"
+import { Phone, Loader2, Filter, TrendingUp, Calendar, CheckCircle2, Pencil, Check, X, Search } from "lucide-react"
 
 // ---- types ----
 
@@ -70,6 +70,7 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
   const [submitting, setSubmitting] = useState(false)
   const [filterDate, setFilterDate] = useState("")
   const [filterAgent, setFilterAgent] = useState("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [editingNotes, setEditingNotes] = useState<string | null>(null) // call id being edited
   const [notesValue, setNotesValue] = useState("")
 
@@ -119,9 +120,21 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
   const conversionRate = calls.length > 0 ? Math.round((totalClosed / calls.length) * 100) : 0
 
   // ---- filtered calls ----
+  // Phone normaliser: digits-only so "012-345 6789", "+60123456789", "0123456789" all match.
+  const normalisePhone = (s: string) => s.replace(/\D+/g, "")
+  const trimmedQuery = searchQuery.trim()
+  const queryLower = trimmedQuery.toLowerCase()
+  const queryDigits = normalisePhone(trimmedQuery)
   const filteredCalls = calls.filter((c) => {
     if (filterDate && c.date !== filterDate) return false
     if (filterAgent !== "all" && c.agent !== filterAgent) return false
+    if (trimmedQuery) {
+      const phoneDigits = c.phone ? normalisePhone(c.phone) : ""
+      const nameLower = (c.customer_name ?? "").toLowerCase()
+      const phoneMatch = queryDigits.length > 0 && phoneDigits.includes(queryDigits)
+      const nameMatch = nameLower.includes(queryLower)
+      if (!phoneMatch && !nameMatch) return false
+    }
     return true
   })
 
@@ -291,6 +304,16 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
           <Filter className="h-4 w-4 text-slate-400" />
           <span className="text-sm font-medium text-slate-600">Filter:</span>
         </div>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+          <Input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Phone or name…"
+            className="h-8 w-56 pl-8"
+          />
+        </div>
         <Input
           type="date"
           value={filterDate}
@@ -309,9 +332,9 @@ export function CallLogClient({ initialCalls }: CallLogClientProps) {
             </option>
           ))}
         </select>
-        {(filterDate || filterAgent !== "all") && (
+        {(filterDate || filterAgent !== "all" || searchQuery) && (
           <button
-            onClick={() => { setFilterDate(""); setFilterAgent("all") }}
+            onClick={() => { setFilterDate(""); setFilterAgent("all"); setSearchQuery("") }}
             className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
           >
             Clear filters
