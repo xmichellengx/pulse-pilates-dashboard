@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import {
@@ -183,6 +183,14 @@ export function OrdersTable({
   const [, startTransition] = useTransition()
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [localOrders, setLocalOrders] = useState<Order[]>(orders)
+
+  // `orders` is re-fetched server-side whenever filters / page change via
+  // URL params. Without this, localOrders stays stuck on the first mount's
+  // list (so changing the Mode filter to P4B left the table showing all
+  // orders while the count badge correctly read 0).
+  useEffect(() => {
+    setLocalOrders(orders)
+  }, [orders])
 
   function handleOrderUpdate(updatedOrder: Order) {
     setLocalOrders((prev) => prev.map((o) => o.id === updatedOrder.id ? updatedOrder : o))

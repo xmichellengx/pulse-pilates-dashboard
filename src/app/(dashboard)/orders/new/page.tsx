@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ArrowLeft, Copy, Save, Loader2, Check, RefreshCw, Plus, Trash2 } from "lucide-react"
@@ -140,9 +140,21 @@ const EMPTY_FORM = {
 
 // ── Component ──
 
+const ALLOWED_PREFILL_MODES = new Set([
+  "Direct Purchase",
+  "Rental",
+  "P4B",
+  "CC Installment",
+])
+
 export default function NewOrderPage() {
   const router = useRouter()
-  const [form, setForm] = useState(EMPTY_FORM)
+  const searchParams = useSearchParams()
+  const initialMode = searchParams.get("mode")
+  const [form, setForm] = useState(() => ({
+    ...EMPTY_FORM,
+    mode: initialMode && ALLOWED_PREFILL_MODES.has(initialMode) ? initialMode : EMPTY_FORM.mode,
+  }))
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLineItem()])
   const [discounts, setDiscounts] = useState<DiscountItem[]>([])
   const [products, setProducts] = useState<Product[]>([])

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
   Repeat,
   TrendingUp,
@@ -16,6 +17,7 @@ import {
   Trash2,
   Loader2,
   Building2,
+  Plus,
 } from "lucide-react"
 import { toast } from "sonner"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -751,6 +753,13 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
             <p className="text-sm text-slate-500 mt-0.5">Track active rentals, follow-ups, and conversion opportunities.</p>
           </div>
         </div>
+        <Link
+          href="/orders/new?mode=Rental"
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-indigo-500 text-white text-sm font-semibold shadow-sm hover:bg-indigo-600 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          New Rental
+        </Link>
       </div>
 
       {/* Stats row */}
