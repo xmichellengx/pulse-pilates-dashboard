@@ -72,15 +72,35 @@ function InvoiceDetailModal({
   async function handleGeneratePDF() {
     setGeneratingPdf(true)
     try {
+      // /api/invoices/pdf now validates against the same `InvoicePDFInput`
+      // shape used by the order-detail-modal flow. Adapt the manually-built
+      // invoice record into that shape.
+      const docType: "invoice" | "receipt" | "rental" =
+        invoice.type === "receipt"
+          ? "receipt"
+          : invoice.type === "rental"
+            ? "rental"
+            : "invoice"
+      const items = (invoice.line_items ?? []).map((li) => ({
+        description: li.description ?? "",
+        qty: Number(li.qty) || 0,
+        unit_price: Number(li.unit_price) || 0,
+        amount: Number(li.amount) || 0,
+      }))
+      const total = Number(invoice.amount) || 0
+      const now = new Date()
+      const billDate = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`
       const payload = {
-        invoice_number: invoice.invoice_number,
-        type: invoice.type,
+        doc_type: docType,
+        bill_number: invoice.invoice_number,
+        bill_date: billDate,
+        reference: invoice.order_case_code ?? undefined,
         customer_name: invoice.customer_name,
-        customer_email: invoice.customer_email,
-        order_case_code: invoice.order_case_code,
-        items: invoice.line_items ?? [],
-        amount: invoice.amount,
-        currency: invoice.currency ?? "RM",
+        customer_email: invoice.customer_email ?? undefined,
+        items,
+        total,
+        deposit: 0,
+        balance: total,
       }
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",

@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic"
 
+import { requireUser } from "@/lib/api/auth"
+
 interface ChatdaddyChat {
   id: string
   unread?: number
@@ -63,6 +65,9 @@ async function fetchAllChats(accountId: string, apiKey: string): Promise<Chatdad
 }
 
 export async function GET() {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
+
   try {
     const apiKey = process.env.CHATDADDY_API_KEY
     const accountId = process.env.CHATDADDY_ACCOUNT_ID

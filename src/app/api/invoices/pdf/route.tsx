@@ -6,6 +6,8 @@ import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 import fs from "fs"
 import path from "path"
+import { z } from "zod"
+import { requireUser } from "@/lib/api/auth"
 
 // ── Image helpers ──────────────────────────────────────────────────────────────
 function imgB64(filePath: string): string {
@@ -614,11 +616,92 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
   )
 }
 
+// ── Input validation ───────────────────────────────────────────────────────────
+// The route used to do `body as InvoicePDFInput` with no runtime check, which
+// let any caller render a fully-branded Pulse Pilates PDF with arbitrary
+// content (fraud / phishing). This schema mirrors `InvoicePDFInput` above
+// and caps every free-text field + the item count to prevent abuse.
+
+const MAX_BODY_BYTES = 256 * 1024
+
+const InvoicePDFInputSchema = z.object({
+  doc_type: z.enum(["invoice", "receipt", "rental"]),
+  bill_number: z.string().min(1).max(100),
+  bill_date: z.string().min(1).max(50),
+  reference: z.string().max(100).optional(),
+  customer_name: z.string().min(1).max(200),
+  customer_email: z.string().max(200).optional().nullable(),
+  customer_phone: z.string().max(50).optional().nullable(),
+  customer_location: z.string().max(200).optional().nullable(),
+  customer_address: z.string().max(500).optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        description: z.string().max(500),
+        sub_description: z.string().max(500).optional(),
+        qty: z.number().finite(),
+        unit_price: z.number().finite(),
+        amount: z.number().finite(),
+      })
+    )
+    .max(50),
+  total: z.number().finite(),
+  deposit: z.number().finite(),
+  balance: z.number().finite(),
+  delivery_date: z.string().max(50).optional().nullable(),
+  estimated_delivery: z.string().max(200).optional().nullable(),
+  delivery_location: z.string().max(200).optional().nullable(),
+  payment_date: z.string().max(50).optional().nullable(),
+  buying_method: z.string().max(100).optional().nullable(),
+  warranty_body_start: z.string().max(50).optional().nullable(),
+  warranty_body_end: z.string().max(50).optional().nullable(),
+  warranty_spring_start: z.string().max(50).optional().nullable(),
+  warranty_spring_end: z.string().max(50).optional().nullable(),
+  rental_start_date: z.string().max(50).optional().nullable(),
+  monthly_rental_amount: z.number().finite().optional().nullable(),
+  monthly_billing_date: z.string().max(50).optional().nullable(),
+  auto_debit_effective_date: z.string().max(50).optional().nullable(),
+  issued_by: z.string().max(100).optional().nullable(),
+})
+
 // ── Route handler ──────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  try {
-    const body = (await req.json()) as InvoicePDFInput
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
 
+  // Per-request size cap
+  const contentLength = req.headers.get("content-length")
+  if (contentLength && Number(contentLength) > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Request body too large" }, { status: 413 })
+  }
+
+  let rawBody: unknown
+  try {
+    rawBody = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+
+  const parsed = InvoicePDFInputSchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: "Invalid invoice payload",
+        details: parsed.error.issues.map((i) => ({
+          path: i.path.join("."),
+          message: i.message,
+        })),
+      },
+      { status: 400 }
+    )
+  }
+
+  // Zod produces optional vs nullable that doesn't quite match the interface;
+  // coerce nullables to undefined so the React component (which expects
+  // optionals) renders correctly.
+  const body = parsed.data as unknown as InvoicePDFInput
+
+  try {
     const pdfBuffer = await renderToBuffer(
       <InvoiceDocument {...body} logoSrc={LOGO_SRC} />
     )

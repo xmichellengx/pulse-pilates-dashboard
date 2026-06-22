@@ -1,11 +1,15 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createServiceClient } from "@supabase/supabase-js"
+import { requireUser } from "@/lib/api/auth"
 
-const supabase = createClient(
+const supabase = createServiceClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export async function POST(req: Request) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
+
   const body = await req.json()
   const { order_id, type, invoice_number, customer_name, customer_email, amount, generated_by } = body
 
@@ -25,6 +29,9 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
+
   const body = await req.json()
   const { id, ...updates } = body
   if (!id) return Response.json({ error: "id required" }, { status: 400 })

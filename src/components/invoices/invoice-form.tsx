@@ -74,7 +74,7 @@ export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps)
   )
   const [saving, setSaving] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
-  const [sendingEmail, setSendingEmail] = useState(false)
+  const [sendingEmail] = useState(false)
   const [markedSent, setMarkedSent] = useState(!!initialData?.sent_at)
 
   const isEditing = !!initialData?.id
@@ -140,15 +140,37 @@ export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps)
     setGeneratingPdf(true)
     try {
       const invoiceNumber = generateInvoiceNumber()
+      // /api/invoices/pdf validates against `InvoicePDFInput`. Adapt the
+      // free-form invoice into that shape (doc_type / bill_number / total
+      // / deposit / balance instead of type / invoice_number / amount).
+      const docType: "invoice" | "receipt" | "rental" =
+        watchedValues.type === "receipt"
+          ? "receipt"
+          : watchedValues.type === "rental"
+            ? "rental"
+            : "invoice"
+      const items = lineItems
+        .filter((i) => i.description)
+        .map((i) => ({
+          description: i.description,
+          qty: Number(i.qty) || 0,
+          unit_price: Number(i.unit_price) || 0,
+          amount: Number(i.amount) || 0,
+        }))
+      const total = Number(watchedValues.amount) || 0
+      const now = new Date()
+      const billDate = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`
       const payload = {
-        invoice_number: invoiceNumber,
-        type: watchedValues.type,
+        doc_type: docType,
+        bill_number: invoiceNumber,
+        bill_date: billDate,
+        reference: watchedValues.order_case_code || undefined,
         customer_name: watchedValues.customer_name,
-        customer_email: watchedValues.customer_email,
-        order_case_code: watchedValues.order_case_code,
-        items: lineItems.filter((i) => i.description),
-        amount: watchedValues.amount,
-        currency: watchedValues.currency,
+        customer_email: watchedValues.customer_email || undefined,
+        items,
+        total,
+        deposit: 0,
+        balance: total,
       }
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",
@@ -172,23 +194,15 @@ export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps)
   }
 
   async function handleSendEmail() {
-    setSendingEmail(true)
-    try {
-      const res = await fetch("/api/invoices/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer_email: watchedValues.customer_email }),
-      })
-      if (res.status === 503) {
-        toast.info("Email sending coming soon — set RESEND_API_KEY to enable")
-      } else {
-        toast.success("Email sent")
-      }
-    } catch {
-      toast.info("Email sending coming soon")
-    } finally {
-      setSendingEmail(false)
-    }
+    // The manual invoice form is not tied to an order, so we cannot use the
+    // hardened /api/invoices/send contract (which now requires an order_id and
+    // derives the recipient from the order record — see security fix F-SEC-7).
+    // Manual invoices must be downloaded as PDFs and sent via the user's own
+    // email client until this form is reworked to attach to an order.
+    toast.info(
+      "Email sending is only available for invoices generated from an order. " +
+        "Download the PDF and send it from your email client."
+    )
   }
 
   async function handleSave(values: FormValues) {

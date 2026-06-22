@@ -743,6 +743,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
         customer_phone: watchedValues.phone,
         studio_name: watchedValues.studio_name,
         market,
+        pricing_tier: watchedValues.pricing_tier,
         items: lineItems,
         delivery_fee: watchedValues.delivery_fee,
         installation_fee: watchedValues.installation_fee,

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import { mutate } from "@/lib/supabase/mutate"
 import { QuotationBuilder, type Product, type QuotationInitialData } from "@/components/quotations/quotation-builder"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { formatDate } from "@/lib/utils"
@@ -172,10 +173,25 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
         ? "CC Installment"
         : "Direct Purchase"
 
-      // For rentals, derive monthly_rental from the first item's unit_price (which is the monthly rate)
+      // For rentals, the monthly_rental is the sum of (unit_price * qty) across
+      // rental line items — this matches the quotation builder's notion of the
+      // monthly rate.
       const monthlyRental = mode === "Rental"
-        ? validItems.reduce((s, i) => s + (i.unit_price || 0) * (i.qty || 1), 0)
+        ? validItems
+            .filter((i) => i.purchase_mode === "rental")
+            .reduce((s, i) => s + (i.unit_price || 0) * (i.qty || 1), 0)
         : null
+
+      // q.total for a rental quotation excludes the deposit. The customer's
+      // actual activation payment is delivery + installation + 1st month rental
+      // + deposit (2 months for P4B T2, 4 months for P4B T1 / retail — matches
+      // the quotation builder's "Rental deposit info" panel).
+      const depositMonths = mode === "Rental"
+        ? (q.pricing_tier === "p4b_t2" ? 2 : 4)
+        : 0
+      const activationAmount = mode === "Rental"
+        ? q.total + (monthlyRental ?? 0) * depositMonths
+        : q.total
 
       // Create order entry in the DB
       const supabase = createClient()
@@ -188,7 +204,8 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
           product_name: productSummary || firstItem?.product_name || "See quotation",
           units: totalUnits || firstItem?.qty || 1,
           mode,
-          amount: q.total,
+          amount: activationAmount,
+          balance: activationAmount,
           monthly_rental: monthlyRental,
           market: q.market,
           status: "Pending",
@@ -215,19 +232,33 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
         .single()
       if (error) throw error
 
-      // Mark quotation as converted (link to the new order's UUID)
+      // Mark quotation as converted (link to the new order's UUID). The order
+      // itself was already created successfully — if linking fails, surface
+      // the error via mutate() but DON'T revert the order. We just skip the
+      // optimistic "Converted" status badge update so the UI doesn't lie.
       const orderId = newOrder?.id ?? null
-      const { error: updateErr } = await supabase
-        .from("quotations")
-        .update({ converted_to_order: orderId })
-        .eq("id", q.id)
-      if (updateErr) console.error("Failed to link quotation -> order:", updateErr)
+      let linked = false
+      try {
+        await mutate(
+          supabase
+            .from("quotations")
+            .update({ converted_to_order: orderId })
+            .eq("id", q.id),
+          { failure: "Order created, but failed to link quotation. Refresh and re-link manually." }
+        )
+        linked = true
+      } catch (linkErr) {
+        // Already toasted by mutate(); keep going so we don't lose the order.
+        console.error("Failed to link quotation -> order:", linkErr)
+      }
 
-      setQuotations((prev) =>
-        prev.map((x) => x.id === q.id ? { ...x, converted_to_order: orderId } : x)
-      )
+      if (linked) {
+        setQuotations((prev) =>
+          prev.map((x) => x.id === q.id ? { ...x, converted_to_order: orderId } : x)
+        )
+      }
       setViewModal(null)
-      toast.success("Order created with full breakdown. Open Orders to finish.")
+      if (linked) toast.success("Order created with full breakdown. Open Orders to finish.")
       router.refresh()
     } catch (err) {
       console.error(err)
@@ -239,15 +270,26 @@ export function QuotationsClient({ initialQuotations, products }: QuotationsClie
 
   async function handleMarkSent(q: Quotation) {
     setMarkingSent(true)
+    // Snapshot pre-mutation state so we can revert if the DB rejects the write.
+    const prevQuotations = quotations
+    const prevModal = viewModal
     try {
       const supabase = createClient()
       const newValue = !q.email_sent
-      await supabase.from("quotations").update({ email_sent: newValue }).eq("id", q.id)
+      await mutate(
+        supabase.from("quotations").update({ email_sent: newValue }).eq("id", q.id),
+        {
+          success: newValue ? "Marked as Sent to Customer" : "Marked as Active",
+          failure: "Failed to update",
+        }
+      )
+      // Apply local state AFTER the mutation resolves successfully.
       setQuotations((prev) => prev.map((x) => x.id === q.id ? { ...x, email_sent: newValue } : x))
       setViewModal((prev) => prev ? { ...prev, email_sent: newValue } : null)
-      toast.success(newValue ? "Marked as Sent to Customer" : "Marked as Active")
     } catch {
-      toast.error("Failed to update")
+      // mutate() already toasted; revert to pre-mutation snapshot.
+      setQuotations(prevQuotations)
+      setViewModal(prevModal)
     } finally {
       setMarkingSent(false)
     }

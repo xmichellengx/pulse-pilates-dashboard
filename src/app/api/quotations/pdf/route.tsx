@@ -6,6 +6,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { renderToBuffer } from "@react-pdf/renderer"
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
+import { z } from "zod"
+import { requireUser } from "@/lib/api/auth"
 
 // ---------- image helpers ----------
 
@@ -299,8 +301,9 @@ function QuotationDocument(props: QuotationPDFInput) {
   const customPrices = getCustomisationPrices(market, props.pricing_tier)
 
   const monthlyTotal = isRental ? validItems.reduce((s, i) => s + i.unit_price * i.qty, 0) : 0
-  const deposit4M = monthlyTotal * 4
-  const rentalActivation = isRental ? delivery_fee + installation_fee + monthlyTotal + deposit4M : 0
+  const depositMonths = props.pricing_tier === "p4b_t2" ? 2 : 4
+  const depositTotal = monthlyTotal * depositMonths
+  const rentalActivation = isRental ? delivery_fee + installation_fee + monthlyTotal + depositTotal : 0
 
   const activeDiscounts = (discounts ?? []).filter((d) => d.amount > 0)
   const activeAdditional = (additional_charges ?? []).filter((c) => c.amount > 0)
@@ -466,8 +469,8 @@ function QuotationDocument(props: QuotationPDFInput) {
                   <Text style={{ ...s.td, ...s.colRemarks }} />
                   <Text style={{ ...s.td, ...s.colQty }}>{item.qty}</Text>
                   <Text style={{ ...s.td, ...s.colUnitPrice }}>{item.unit_price.toLocaleString()}</Text>
-                  <Text style={{ ...s.td, width: 50, textAlign: "right", paddingRight: 4 }}>{item.unit_price.toLocaleString()}</Text>
-                  <Text style={{ ...s.td, width: 64, textAlign: "right", paddingRight: 4 }}>{(item.unit_price * 12).toLocaleString()}</Text>
+                  <Text style={{ ...s.td, width: 50, textAlign: "right", paddingRight: 4 }}>{(item.unit_price * item.qty).toLocaleString()}</Text>
+                  <Text style={{ ...s.td, width: 64, textAlign: "right", paddingRight: 4 }}>{(item.unit_price * item.qty * 12).toLocaleString()}</Text>
                 </View>
               )
             })}
@@ -492,8 +495,8 @@ function QuotationDocument(props: QuotationPDFInput) {
                   <Text style={s.totalValue}>{monthlyTotal.toLocaleString()}</Text>
                 </View>
                 <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>(+) Deposit 4 Months</Text>
-                  <Text style={s.totalValue}>{deposit4M.toLocaleString()}</Text>
+                  <Text style={s.totalLabel}>(+) Deposit {depositMonths} Months</Text>
+                  <Text style={s.totalValue}>{depositTotal.toLocaleString()}</Text>
                 </View>
                 <View style={s.grandTotalRow}>
                   <Text style={s.grandTotalLabel}>Rental Activation ({currency})</Text>
@@ -562,21 +565,104 @@ function QuotationDocument(props: QuotationPDFInput) {
   )
 }
 
+// ---------- Input validation ----------
+// Untrusted callers used to be able to render any content into a fully-branded
+// Pulse Pilates quotation PDF (fraud / phishing). Validate strictly against
+// `QuotationPDFInput` and cap items + per-field lengths.
+
+const MAX_BODY_BYTES = 256 * 1024
+
+const QuotationPDFInputSchema = z.object({
+  quotation_number: z.string().min(1).max(100),
+  customer_name: z.string().min(1).max(200),
+  // The client form allows empty strings for phone/email — keep those legal.
+  customer_phone: z.string().max(50).optional().nullable().default(""),
+  customer_email: z.string().max(200).optional().nullable(),
+  studio_name: z.string().max(200).optional().nullable(),
+  market: z.string().min(1).max(50),
+  pricing_tier: z.string().max(50).optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        product_id: z.string().max(100),
+        product_name: z.string().max(200),
+        qty: z.number().finite(),
+        unit_price: z.number().finite(),
+        purchase_mode: z.string().max(50),
+        custom_colour: z.boolean(),
+        colour_name: z.string().max(100),
+        logo_engraving: z.boolean(),
+        engraving_notes: z.string().max(500),
+        customisation_surcharge: z.number().finite(),
+      })
+    )
+    .max(50),
+  delivery_fee: z.number().finite(),
+  installation_fee: z.number().finite(),
+  subtotal: z.number().finite(),
+  total: z.number().finite(),
+  discounts: z
+    .array(z.object({ label: z.string().max(200), amount: z.number().finite() }))
+    .max(20)
+    .optional(),
+  additional_charges: z
+    .array(z.object({ label: z.string().max(200), amount: z.number().finite() }))
+    .max(20)
+    .optional(),
+  estimated_delivery: z.string().max(200).optional().nullable(),
+  delivery_location: z.string().max(500).optional().nullable(),
+  remarks: z.string().max(2000).optional().nullable(),
+})
+
 // ---------- POST handler ----------
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
+
+  // Per-request size cap
+  const contentLength = req.headers.get("content-length")
+  if (contentLength && Number(contentLength) > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Request body too large" }, { status: 413 })
+  }
+
+  let rawBody: unknown
   try {
-    const body = await req.json()
+    rawBody = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+
+  const parsed = QuotationPDFInputSchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: "Invalid quotation payload",
+        details: parsed.error.issues.map((i) => ({
+          path: i.path.join("."),
+          message: i.message,
+        })),
+      },
+      { status: 400 }
+    )
+  }
+
+  // Zod's strict shape is structurally a superset of `QuotationPDFInput`
+  // (with nullables instead of plain optionals); the document component only
+  // reads optional fields defensively, so a structural cast is safe.
+  const body = parsed.data as unknown as QuotationPDFInput
+
+  try {
     const buffer = await renderToBuffer(<QuotationDocument {...body} />)
     return new NextResponse(buffer as unknown as BodyInit, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${body.quotation_number ?? "quotation"}.pdf"`,
+        "Content-Disposition": `attachment; filename="${body.quotation_number}.pdf"`,
       },
     })
   } catch (err) {
     console.error("Quotation PDF error:", err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: "PDF generation failed" }, { status: 500 })
   }
 }

@@ -34,9 +34,14 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const isLoginPage = request.nextUrl.pathname.startsWith("/login")
-  const isApiRoute = request.nextUrl.pathname.startsWith("/api")
+  // /api/sync/sheets uses its own bearer-token auth (SHEETS_SYNC_SECRET) and
+  // is called by an external Google Apps Script that does not carry a user
+  // session cookie. Exempt only that path from the redirect; every other
+  // /api/* route is gated by requireUser() in src/lib/api/auth.ts AND by
+  // this middleware as a second line of defense.
+  const isSheetsSync = request.nextUrl.pathname.startsWith("/api/sync/sheets")
 
-  if (!user && !isLoginPage && !isApiRoute) {
+  if (!user && !isLoginPage && !isSheetsSync) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     return NextResponse.redirect(url)

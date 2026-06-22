@@ -1,7 +1,8 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createServiceClient } from "@supabase/supabase-js"
 import type { InvoicePDFInput } from "../pdf/route"
+import { requireUser } from "@/lib/api/auth"
 
-const supabase = createClient(
+const supabase = createServiceClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
@@ -71,6 +72,9 @@ function buildItemDescription(it: StoredOrderItem, isRental: boolean): string {
 }
 
 export async function GET(req: Request) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
+
   const orderId = new URL(req.url).searchParams.get("order_id")
   if (!orderId) {
     return Response.json({ error: "order_id is required" }, { status: 400 })

@@ -281,6 +281,52 @@ export default function NewOrderPage() {
         remarksValue = remarksValue ? `${prefix} ${remarksValue}` : prefix
       }
 
+      // Map form line items to the orders.items jsonb shape used app-wide
+      // (matches quotations.items: product_id, product_name, qty, unit_price,
+      // purchase_mode, custom_colour, colour_name, logo_engraving,
+      // engraving_notes, customisation_surcharge).
+      const purchaseMode = isRental
+        ? "rental"
+        : form.mode === "CC Installment"
+        ? "cc_installment"
+        : "direct"
+      const itemsForStorage = lineItems.map((item) => {
+        const p = products.find((x) => x.id === item.product_id)
+        const product_name = (p?.name ?? item.product_name_manual.trim()) || "Product"
+        const colour = item.colour.trim()
+        return {
+          product_id: item.product_id || "",
+          product_name,
+          qty: item.units,
+          unit_price: item.unit_price,
+          purchase_mode: purchaseMode,
+          custom_colour: !!colour,
+          colour_name: colour,
+          logo_engraving: false,
+          engraving_notes: "",
+          customisation_surcharge: 0,
+        }
+      })
+
+      // Subtotal formula matches the rest of the app (post-fix bb02340):
+      // sum((unit_price + customisation_surcharge) * qty)
+      const subtotal = itemsForStorage.reduce(
+        (s, it) => s + (it.unit_price + it.customisation_surcharge) * it.qty,
+        0,
+      )
+      const totalDiscountAmt = discounts.reduce((s, d) => s + (d.amount || 0), 0)
+      // No additional charges UI yet — persist empty array for shape parity
+      const additionalCharges: Array<{ label: string; amount: number }> = []
+      const totalAdditionalAmt = additionalCharges.reduce((s, c) => s + (c.amount || 0), 0)
+      const amount =
+        subtotal + deliveryFee + installationFee + totalAdditionalAmt - totalDiscountAmt
+      const monthlyRentalValue =
+        isRental && form.monthly_rental !== ""
+          ? parseFloat(String(form.monthly_rental))
+          : isRental
+          ? subtotal // sum of first-month rental amounts when not entered explicitly
+          : null
+
       const payload = {
         case_code: form.case_code.trim().toUpperCase(),
         customer_name: form.customer_name.trim(),
@@ -290,10 +336,8 @@ export default function NewOrderPage() {
         units: totalUnits,
         mode: form.mode,
         payment_type: form.payment_type || null,
-        amount: isRental ? null : computedTotal,
-        monthly_rental: isRental && form.monthly_rental !== ""
-          ? parseFloat(String(form.monthly_rental))
-          : null,
+        amount,
+        monthly_rental: monthlyRentalValue,
         balance: form.balance !== "" ? parseFloat(String(form.balance)) : 0,
         delivery_date: form.delivery_date || null,
         location: form.location.trim() || null,
@@ -302,6 +346,17 @@ export default function NewOrderPage() {
         market: form.market,
         status: form.status,
         remarks: remarksValue || null,
+        // Pricing + logistics breakdown (matches handleConvertToOrder shape)
+        subtotal,
+        delivery_fee: deliveryFee,
+        installation_fee: installationFee,
+        items: itemsForStorage,
+        discounts: discounts.filter((d) => d.amount > 0),
+        additional_charges: additionalCharges,
+        delivery_location: form.location.trim() || null,
+        estimated_delivery: form.delivery_date || null,
+        studio_name: null,
+        pricing_tier: "retail",
       }
 
       const res = await fetch("/api/orders", {
