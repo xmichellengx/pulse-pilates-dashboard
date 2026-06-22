@@ -19,10 +19,26 @@ import {
   Building2,
   Plus,
   Pencil,
+  PhoneCall,
 } from "lucide-react"
 import { toast } from "sonner"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { formatDate } from "@/lib/utils"
+import { formatDate, cn } from "@/lib/utils"
+
+export type RentalFollowUp = {
+  id: string
+  order_id: string
+  follow_up_date: string
+  agent: string | null
+  month_mark: number | null
+  contacted: string | null
+  outcome: string | null
+  notes: string | null
+  payment_confirmed: boolean | null
+  next_action: string | null
+  next_follow_up_date: string | null
+  created_at: string
+}
 
 export type RentalOrder = {
   id: string
@@ -41,6 +57,18 @@ export type RentalOrder = {
   payex_proof_url: string | null
   customer_id_url: string | null
   leasing_contract_url: string | null
+  follow_ups: RentalFollowUp[]
+}
+
+const CONTACTED_OPTIONS = ["Yes", "No Answer", "Voicemail", "WhatsApp Seen"] as const
+const OUTCOME_OPTIONS = ["On track", "Wants to convert", "Wants to terminate", "At risk", "Complaint"] as const
+
+const OUTCOME_PILL_COLORS: Record<string, string> = {
+  "On track": "bg-emerald-50 text-emerald-700 border-emerald-100",
+  "Wants to convert": "bg-indigo-50 text-indigo-700 border-indigo-100",
+  "Wants to terminate": "bg-slate-100 text-slate-600 border-slate-200",
+  "At risk": "bg-amber-50 text-amber-700 border-amber-100",
+  Complaint: "bg-red-50 text-red-700 border-red-100",
 }
 
 interface RentalsClientProps {
@@ -359,6 +387,208 @@ Please confirm and we will coordinate with our delivery team.`
           >
             <X className="h-4 w-4" />
             {terminating ? "Processing…" : "Mark as Returned"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FollowUpModal({
+  rental,
+  monthMark,
+  onClose,
+  onLogged,
+}: {
+  rental: RentalOrder
+  monthMark: number | null
+  onClose: () => void
+  onLogged: (followUp: RentalFollowUp) => void
+}) {
+  const today = new Date().toISOString().slice(0, 10)
+  const [followUpDate, setFollowUpDate] = useState(today)
+  const [agent, setAgent] = useState("")
+  const [contacted, setContacted] = useState<string>("")
+  const [outcome, setOutcome] = useState<string>("")
+  const [notes, setNotes] = useState("")
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false)
+  const [nextAction, setNextAction] = useState("")
+  const [nextFollowUpDate, setNextFollowUpDate] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!contacted) {
+      toast.error("Pick whether you reached the customer")
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/orders/${rental.id}/follow-ups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          follow_up_date: followUpDate,
+          agent: agent.trim() || undefined,
+          month_mark: monthMark,
+          contacted,
+          outcome: outcome || null,
+          notes: notes.trim() || null,
+          payment_confirmed: paymentConfirmed,
+          next_action: nextAction.trim() || null,
+          next_follow_up_date: nextFollowUpDate || null,
+        }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "Failed to log follow-up" }))
+        throw new Error(error || "Failed to log follow-up")
+      }
+      const followUp = (await res.json()) as RentalFollowUp
+      onLogged(followUp)
+      toast.success("Follow-up logged")
+      onClose()
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : "Failed to log follow-up")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-lg mx-4 rounded-2xl bg-white shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <PhoneCall className="h-4 w-4 text-indigo-500" />
+              Log follow-up
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {rental.customer_name}
+              {monthMark ? ` · Month ${monthMark} touchpoint` : " · Ad-hoc"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Date">
+              <input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} className={editInput} />
+            </Field>
+            <Field label="Agent (optional)">
+              <input value={agent} onChange={(e) => setAgent(e.target.value)} placeholder="Defaults to you" className={editInput} />
+            </Field>
+          </div>
+
+          <div>
+            <span className="block text-xs font-medium text-slate-500 mb-1.5">Reached customer?</span>
+            <div className="flex flex-wrap gap-1.5">
+              {CONTACTED_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setContacted(opt)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md border text-xs font-medium transition-all",
+                    contacted === opt
+                      ? "bg-indigo-500 text-white border-indigo-500"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
+                  )}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="block text-xs font-medium text-slate-500 mb-1.5">Outcome</span>
+            <div className="flex flex-wrap gap-1.5">
+              {OUTCOME_OPTIONS.map((opt) => {
+                const colors = OUTCOME_PILL_COLORS[opt]
+                const active = outcome === opt
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setOutcome(active ? "" : opt)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md border text-xs font-medium transition-all",
+                      active ? cn(colors, "ring-2 ring-offset-1 ring-slate-300") : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                    )}
+                  >
+                    {opt}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <Field label="Notes">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="What did the customer say?"
+              rows={3}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none"
+            />
+          </Field>
+
+          <label className="flex items-center gap-2.5 rounded-xl bg-slate-50 px-3 py-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={paymentConfirmed}
+              onChange={(e) => setPaymentConfirmed(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-400"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-slate-800">Payment confirmed this cycle</p>
+              <p className="text-xs text-slate-500">PayEx debit went through; no outstanding balance.</p>
+            </div>
+          </label>
+
+          <Field label="Next action (optional)">
+            <input
+              value={nextAction}
+              onChange={(e) => setNextAction(e.target.value)}
+              placeholder="e.g. Send conversion quote, schedule maintenance"
+              className={editInput}
+            />
+          </Field>
+
+          <Field label="Next follow-up date (optional)">
+            <input
+              type="date"
+              value={nextFollowUpDate}
+              onChange={(e) => setNextFollowUpDate(e.target.value)}
+              className={editInput}
+            />
+          </Field>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="inline-flex items-center h-9 px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-colors disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {saving ? "Saving…" : "Log follow-up"}
           </button>
         </div>
       </div>
@@ -815,6 +1045,7 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
   const [terminationTarget, setTerminationTarget] = useState<RentalOrder | null>(null)
   const [documentsTarget, setDocumentsTarget] = useState<RentalOrder | null>(null)
   const [editTarget, setEditTarget] = useState<RentalOrder | null>(null)
+  const [followUpTarget, setFollowUpTarget] = useState<{ rental: RentalOrder; monthMark: number | null } | null>(null)
 
   function handleConverted(id: string) {
     setRentals((prev) => prev.filter((r) => r.id !== id))
@@ -826,6 +1057,12 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
 
   function handleRentalUpdated(updated: RentalOrder) {
     setRentals((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+  }
+
+  function handleFollowUpLogged(followUp: RentalFollowUp) {
+    setRentals((prev) =>
+      prev.map((r) => (r.id === followUp.order_id ? { ...r, follow_ups: [followUp, ...r.follow_ups] } : r))
+    )
   }
 
   // Stats calculations
@@ -898,6 +1135,14 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
           rental={editTarget}
           onClose={() => setEditTarget(null)}
           onUpdated={handleRentalUpdated}
+        />
+      )}
+      {followUpTarget && (
+        <FollowUpModal
+          rental={followUpTarget.rental}
+          monthMark={followUpTarget.monthMark}
+          onClose={() => setFollowUpTarget(null)}
+          onLogged={handleFollowUpLogged}
         />
       )}
 
@@ -1008,6 +1253,19 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
                         {rental.phone && (
                           <div className="text-xs text-slate-400 mt-0.5">{rental.phone}</div>
                         )}
+                        {rental.follow_ups[0] && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-[10px] text-slate-400">Last:</span>
+                            <span className="text-[10px] text-slate-500">
+                              {new Date(rental.follow_ups[0].follow_up_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                            </span>
+                            {rental.follow_ups[0].outcome && (
+                              <span className={cn("inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium", OUTCOME_PILL_COLORS[rental.follow_ups[0].outcome] ?? "bg-slate-50 text-slate-600 border-slate-100")}>
+                                {rental.follow_ups[0].outcome}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3.5">
                         <span className="text-slate-700">{rental.product_name ?? "—"}</span>
@@ -1064,6 +1322,14 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
                             )
                           })()}
                           <button
+                            onClick={() => setFollowUpTarget({ rental, monthMark: null })}
+                            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-white text-slate-700 text-xs font-medium hover:bg-slate-100 transition-colors border border-slate-200"
+                            title="Log a follow-up"
+                          >
+                            <PhoneCall className="h-3 w-3" />
+                            Log
+                          </button>
+                          <button
                             onClick={() => setEditTarget(rental)}
                             className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-white text-slate-700 text-xs font-medium hover:bg-slate-100 transition-colors border border-slate-200"
                             title="Edit rental"
@@ -1117,25 +1383,52 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
                     {weekGroupLabels[group]}
                   </p>
                   <div className="space-y-2">
-                    {items.map((item, idx) => (
-                      <div
-                        key={`${item.rental.id}-${item.monthMark}-${idx}`}
-                        className="flex items-center justify-between rounded-lg bg-slate-50 border border-slate-100 px-4 py-3"
-                      >
-                        <div>
-                          <span className="text-sm font-semibold text-slate-800">{item.rental.customer_name}</span>
-                          <span className="text-xs text-slate-500 ml-2">{item.rental.product_name}</span>
+                    {items.map((item, idx) => {
+                      const done = item.rental.follow_ups.find((f) => f.month_mark === item.monthMark)
+                      return (
+                        <div
+                          key={`${item.rental.id}-${item.monthMark}-${idx}`}
+                          className="flex items-center justify-between rounded-lg bg-slate-50 border border-slate-100 px-4 py-3"
+                        >
+                          <div>
+                            <span className="text-sm font-semibold text-slate-800">{item.rental.customer_name}</span>
+                            <span className="text-xs text-slate-500 ml-2">{item.rental.product_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {done ? (
+                              <>
+                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                                  <Check className="h-3 w-3" />
+                                  Logged {new Date(done.follow_up_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                </span>
+                                {done.outcome && (
+                                  <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium", OUTCOME_PILL_COLORS[done.outcome] ?? "bg-slate-50 text-slate-600 border-slate-100")}>
+                                    {done.outcome}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <span className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                                  Month {item.monthMark} follow-up due
+                                </span>
+                                <span className="text-xs text-slate-400">
+                                  {item.followUpDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setFollowUpTarget({ rental: item.rental, monthMark: item.monthMark })}
+                                  className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-indigo-500 text-white text-xs font-medium hover:bg-indigo-600 transition-colors"
+                                >
+                                  <PhoneCall className="h-3 w-3" />
+                                  Log
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                            Month {item.monthMark} follow-up due
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            {item.followUpDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )

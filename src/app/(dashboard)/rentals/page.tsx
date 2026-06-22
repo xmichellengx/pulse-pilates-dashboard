@@ -7,6 +7,9 @@ export default async function RentalsPage() {
   // No `equipment_price` column on orders — derive it from products.price_myr
   // via the orders.product_id FK. Used by the conversion modal (rent-to-own
   // math: equipment price minus rental rebate = balance to pay).
+  // No `equipment_price` column on orders — derive it from products.price_myr
+  // via the orders.product_id FK. Used by the conversion modal (rent-to-own
+  // math: equipment price minus rental rebate = balance to pay).
   const { data, error } = await supabase
     .from("orders")
     .select(
@@ -18,6 +21,40 @@ export default async function RentalsPage() {
 
   if (error) {
     console.error("Rentals fetch error:", error)
+  }
+
+  // Fetch all follow-ups for the loaded rentals in one trip.
+  const orderIds = (data ?? []).map((r) => r.id)
+  type FollowUpRow = {
+    id: string
+    order_id: string
+    follow_up_date: string
+    agent: string | null
+    month_mark: number | null
+    contacted: string | null
+    outcome: string | null
+    notes: string | null
+    payment_confirmed: boolean | null
+    next_action: string | null
+    next_follow_up_date: string | null
+    created_at: string
+  }
+  const followUpsByOrder = new Map<string, FollowUpRow[]>()
+  if (orderIds.length > 0) {
+    const { data: fu, error: fuError } = await supabase
+      .from("rental_follow_ups")
+      .select("*")
+      .in("order_id", orderIds)
+      .order("follow_up_date", { ascending: false })
+      .order("created_at", { ascending: false })
+    if (fuError) {
+      console.error("Follow-ups fetch error:", fuError)
+    }
+    for (const row of (fu ?? []) as FollowUpRow[]) {
+      const list = followUpsByOrder.get(row.order_id) ?? []
+      list.push(row)
+      followUpsByOrder.set(row.order_id, list)
+    }
   }
 
   const rentals: RentalOrder[] = (data ?? []).map((row) => {
@@ -42,6 +79,7 @@ export default async function RentalsPage() {
       payex_proof_url: row.payex_proof_url ?? null,
       customer_id_url: row.customer_id_url ?? null,
       leasing_contract_url: row.leasing_contract_url ?? null,
+      follow_ups: followUpsByOrder.get(row.id) ?? [],
     }
   })
 
