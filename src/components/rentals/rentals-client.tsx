@@ -18,6 +18,7 @@ import {
   Loader2,
   Building2,
   Plus,
+  Pencil,
 } from "lucide-react"
 import { toast } from "sonner"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -365,6 +366,154 @@ Please confirm and we will coordinate with our delivery team.`
   )
 }
 
+const EDIT_STATUS_OPTIONS = ["Pending", "Pending Shipment Arrival", "Pending Delivery", "Delivered", "Returned", "Cancelled"]
+const EDIT_PAYEX_OPTIONS = ["", "Pending", "Done", "Failed", "Cancelled"]
+
+function EditRentalModal({
+  rental,
+  onClose,
+  onUpdated,
+}: {
+  rental: RentalOrder
+  onClose: () => void
+  onUpdated: (rental: RentalOrder) => void
+}) {
+  const [customerName, setCustomerName] = useState(rental.customer_name)
+  const [phone, setPhone] = useState(rental.phone ?? "")
+  const [email, setEmail] = useState(rental.email ?? "")
+  const [productName, setProductName] = useState(rental.product_name ?? "")
+  const [monthlyRental, setMonthlyRental] = useState(String(rental.monthly_rental ?? ""))
+  const [deliveryDate, setDeliveryDate] = useState(rental.delivery_date ?? "")
+  const [status, setStatus] = useState(rental.status ?? "Delivered")
+  const [payexStatus, setPayexStatus] = useState(rental.payex_status ?? "")
+  const [balance, setBalance] = useState(String(rental.balance ?? ""))
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const body = {
+        customer_name: customerName.trim() || rental.customer_name,
+        phone: phone.trim() || null,
+        email: email.trim() || null,
+        product_name: productName.trim() || null,
+        monthly_rental: monthlyRental === "" ? null : Number(monthlyRental),
+        delivery_date: deliveryDate || null,
+        status,
+        payex_status: payexStatus || null,
+        balance: balance === "" ? null : Number(balance),
+      }
+      const res = await fetch(`/api/orders/${rental.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "Update failed" }))
+        throw new Error(error || "Update failed")
+      }
+      onUpdated({ ...rental, ...body } as RentalOrder)
+      toast.success("Rental updated")
+      onClose()
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : "Update failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-lg mx-4 rounded-2xl bg-white shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Edit rental</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{rental.case_code ?? rental.customer_name}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Customer name">
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={editInput} />
+            </Field>
+            <Field label="Phone">
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} className={editInput} placeholder="+601…" />
+            </Field>
+          </div>
+          <Field label="Email">
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={editInput} />
+          </Field>
+          <Field label="Product">
+            <input value={productName} onChange={(e) => setProductName(e.target.value)} className={editInput} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Monthly rental (RM)">
+              <input type="number" min={0} step="0.01" value={monthlyRental} onChange={(e) => setMonthlyRental(e.target.value)} className={editInput} />
+            </Field>
+            <Field label="Delivery date">
+              <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className={editInput} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Status">
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className={editInput}>
+                {EDIT_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </Field>
+            <Field label="PayEx status">
+              <select value={payexStatus} onChange={(e) => setPayexStatus(e.target.value)} className={editInput}>
+                {EDIT_PAYEX_OPTIONS.map((s) => <option key={s} value={s}>{s || "—"}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="Outstanding balance (RM)">
+            <input type="number" min={0} step="0.01" value={balance} onChange={(e) => setBalance(e.target.value)} className={editInput} />
+          </Field>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="inline-flex items-center h-9 px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-colors disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const editInput = "w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-slate-500 mb-1">{label}</span>
+      {children}
+    </label>
+  )
+}
+
 // Re-encode large images as JPEG bound to MAX_DIMENSION on the longest
 // edge before upload. Skip PDFs (no client-side compressor) and HEIC
 // (Chrome/Firefox can't decode it; let Supabase store the original so
@@ -665,6 +814,7 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
   const [conversionTarget, setConversionTarget] = useState<RentalOrder | null>(null)
   const [terminationTarget, setTerminationTarget] = useState<RentalOrder | null>(null)
   const [documentsTarget, setDocumentsTarget] = useState<RentalOrder | null>(null)
+  const [editTarget, setEditTarget] = useState<RentalOrder | null>(null)
 
   function handleConverted(id: string) {
     setRentals((prev) => prev.filter((r) => r.id !== id))
@@ -741,6 +891,13 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
             handleRentalUpdated(r)
             setDocumentsTarget(r)
           }}
+        />
+      )}
+      {editTarget && (
+        <EditRentalModal
+          rental={editTarget}
+          onClose={() => setEditTarget(null)}
+          onUpdated={handleRentalUpdated}
         />
       )}
 
@@ -906,6 +1063,14 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
                               </button>
                             )
                           })()}
+                          <button
+                            onClick={() => setEditTarget(rental)}
+                            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-white text-slate-700 text-xs font-medium hover:bg-slate-100 transition-colors border border-slate-200"
+                            title="Edit rental"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </button>
                           <button
                             onClick={() => setConversionTarget(rental)}
                             className="inline-flex items-center h-7 px-2.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-medium hover:bg-indigo-100 transition-colors border border-indigo-100"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -148,6 +148,17 @@ const ALLOWED_PREFILL_MODES = new Set([
 ])
 
 export default function NewOrderPage() {
+  // useSearchParams forces a client-render bailout; wrap so Next can
+  // statically prerender the shell while the param-aware inner component
+  // streams in.
+  return (
+    <Suspense fallback={null}>
+      <NewOrderPageInner />
+    </Suspense>
+  )
+}
+
+function NewOrderPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialMode = searchParams.get("mode")
