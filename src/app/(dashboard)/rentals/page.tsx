@@ -4,10 +4,13 @@ import { RentalsClient, type RentalOrder } from "@/components/rentals/rentals-cl
 export default async function RentalsPage() {
   const supabase = await createClient()
 
+  // No `equipment_price` column on orders — derive it from products.price_myr
+  // via the orders.product_id FK. Used by the conversion modal (rent-to-own
+  // math: equipment price minus rental rebate = balance to pay).
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, case_code, customer_name, phone, email, product_name, monthly_rental, delivery_date, status, payex_status, balance, equipment_price, is_b2b, payex_proof_url, customer_id_url, leasing_contract_url"
+      "id, case_code, customer_name, phone, email, product_name, monthly_rental, delivery_date, status, payex_status, balance, amount, is_b2b, payex_proof_url, customer_id_url, leasing_contract_url, products(price_myr)"
     )
     .ilike("mode", "%ental%")
     .in("status", ["Delivered", "Pending Delivered"])
@@ -17,24 +20,30 @@ export default async function RentalsPage() {
     console.error("Rentals fetch error:", error)
   }
 
-  const rentals: RentalOrder[] = (data ?? []).map((row) => ({
-    id: row.id,
-    case_code: row.case_code ?? null,
-    customer_name: row.customer_name ?? "",
-    phone: row.phone ?? null,
-    email: row.email ?? null,
-    product_name: row.product_name ?? null,
-    monthly_rental: row.monthly_rental ?? null,
-    delivery_date: row.delivery_date ?? null,
-    status: row.status ?? null,
-    payex_status: row.payex_status ?? null,
-    balance: row.balance ?? null,
-    equipment_price: row.equipment_price ?? null,
-    is_b2b: row.is_b2b ?? false,
-    payex_proof_url: row.payex_proof_url ?? null,
-    customer_id_url: row.customer_id_url ?? null,
-    leasing_contract_url: row.leasing_contract_url ?? null,
-  }))
+  const rentals: RentalOrder[] = (data ?? []).map((row) => {
+    // products() can come back as object or array depending on FK cardinality.
+    const productRel = row.products as unknown as { price_myr: number | null } | { price_myr: number | null }[] | null
+    const productPrice = Array.isArray(productRel) ? productRel[0]?.price_myr ?? null : productRel?.price_myr ?? null
+    return {
+      id: row.id,
+      case_code: row.case_code ?? null,
+      customer_name: row.customer_name ?? "",
+      phone: row.phone ?? null,
+      email: row.email ?? null,
+      product_name: row.product_name ?? null,
+      monthly_rental: row.monthly_rental ?? null,
+      delivery_date: row.delivery_date ?? null,
+      status: row.status ?? null,
+      payex_status: row.payex_status ?? null,
+      balance: row.balance ?? null,
+      // Prefer the live product price; fall back to the order amount.
+      equipment_price: productPrice ?? row.amount ?? null,
+      is_b2b: row.is_b2b ?? false,
+      payex_proof_url: row.payex_proof_url ?? null,
+      customer_id_url: row.customer_id_url ?? null,
+      leasing_contract_url: row.leasing_contract_url ?? null,
+    }
+  })
 
   return (
     <div className="flex flex-col max-w-[1400px] mx-auto">
