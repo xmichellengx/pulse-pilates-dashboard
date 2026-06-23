@@ -12,6 +12,7 @@ import {
   Receipt,
   Phone,
   Repeat,
+  Wrench,
   LogOut,
   Plus,
   ChevronUp,
@@ -71,6 +72,11 @@ const navItems = [
     title: "Rentals",
     href: "/rentals",
     icon: Repeat,
+  },
+  {
+    title: "Maintenance",
+    href: "/maintenance",
+    icon: Wrench,
   },
 ]
 
