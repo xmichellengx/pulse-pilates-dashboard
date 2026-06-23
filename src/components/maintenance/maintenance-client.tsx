@@ -206,6 +206,7 @@ function buildInvoicePayload(r: MaintenanceRequest, docType: "invoice" | "receip
     deposit: docType === "receipt" ? total : 0,
     balance: docType === "receipt" ? 0 : total,
     payment_date: r.payment_date ? formatDateShort(r.payment_date) : undefined,
+    is_maintenance: true,
   }
 }
 
@@ -398,7 +399,11 @@ export function MaintenanceClient({ requests: initialRequests, orderOptions }: M
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr
+                    key={r.id}
+                    onClick={() => setEditTarget(r)}
+                    className="hover:bg-indigo-50/30 transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-3.5">
                       <div className="font-semibold text-slate-800 leading-tight">{r.order_customer_name ?? "—"}</div>
                       <div className="text-xs text-slate-400 mt-0.5">
@@ -437,13 +442,13 @@ export function MaintenanceClient({ requests: initialRequests, orderOptions }: M
                         {r.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-right">
+                    <td className="px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => setEditTarget(r)}
                         className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-white text-slate-700 text-xs font-medium hover:bg-slate-100 transition-colors border border-slate-200"
                       >
                         <Pencil className="h-3 w-3" />
-                        Edit
+                        Open
                       </button>
                     </td>
                   </tr>
@@ -1030,7 +1035,71 @@ function EditMaintenanceModal({
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-5">
+          {/* Summary panel — read-only at-a-glance */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">{request.order_customer_name}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {request.order_case_code ?? "no code"} · {request.order_product_name ?? "—"}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", STATUS_COLORS[request.status] ?? "bg-slate-50 text-slate-600 border-slate-100")}>
+                  {request.status}
+                </span>
+                {(request.is_under_warranty || request.is_active_rental) ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    <ShieldCheck className="h-3 w-3" />
+                    {request.is_active_rental ? "Rental" : "Covered"}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    <ShieldAlert className="h-3 w-3" />
+                    Expired
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 text-xs">
+              <div>
+                <p className="text-slate-400">Requested</p>
+                <p className="font-medium text-slate-700">{formatDate(request.requested_date)}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Scheduled</p>
+                <p className="font-medium text-slate-700">
+                  {request.scheduled_date ? formatDate(request.scheduled_date) : "—"}
+                  {request.scheduled_time && <span className="text-slate-500"> · {request.scheduled_time}</span>}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-400">Completed</p>
+                <p className="font-medium text-slate-700">{request.completed_date ? formatDate(request.completed_date) : "—"}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Total</p>
+                <p className="font-semibold text-indigo-600">RM {(request.total ?? 0).toLocaleString()}</p>
+              </div>
+            </div>
+            {request.order_address && (
+              <p className="text-xs text-slate-500 mt-2.5 pt-2.5 border-t border-slate-200/70">
+                <span className="text-slate-400">Address: </span>{request.order_address}
+              </p>
+            )}
+          </div>
+
+          {/* Documents — moved up for quick access */}
+          <div>
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Documents</p>
+            <MaintenanceDocuments request={request} />
+          </div>
+
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Edit details</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1.5">Status</label>
@@ -1093,11 +1162,6 @@ function EditMaintenanceModal({
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none" />
-          </div>
-
-          <div className="border-t border-slate-100 pt-4">
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Documents</p>
-            <MaintenanceDocuments request={request} />
           </div>
         </div>
 

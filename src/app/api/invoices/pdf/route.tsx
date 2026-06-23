@@ -329,6 +329,11 @@ export interface InvoicePDFInput {
   monthly_billing_date?: string
   auto_debit_effective_date?: string
   issued_by?: string
+  // When true, swaps the "Important - Please Read" block for the
+  // maintenance-specific clauses (drops Condominium Delivery + the
+  // 3mo spring / 6mo body equipment warranty — irrelevant for a
+  // service call on already-delivered equipment).
+  is_maintenance?: boolean
 }
 
 function fmt(n: number) {
@@ -365,6 +370,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
     monthly_billing_date,
     auto_debit_effective_date,
     issued_by,
+    is_maintenance,
     logoSrc,
   } = props
 
@@ -554,6 +560,23 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
         <View style={s.importantBox}>
           <Text style={s.importantTitle}>Important - Please Read</Text>
 
+          {is_maintenance ? (
+            <>
+              <Text style={s.importantItem}>
+                <Text style={s.importantLabel}>{"1. Service Inspection : "}</Text>
+                {"Customer is required to inspect and test the equipment before our service team departs. Any concerns must be raised on the day of service."}
+              </Text>
+              <Text style={s.importantItem}>
+                <Text style={s.importantLabel}>{"2. Service Warranty : "}</Text>
+                {"Replaced parts and labour are warranted for 30 days from the service date against defects in materials or workmanship. Damage from external factors or unrelated issues is not covered."}
+              </Text>
+              <Text style={s.importantItem}>
+                <Text style={s.importantLabel}>{"3. Additional Work : "}</Text>
+                {"Any issues identified beyond the originally reported problem will be quoted separately before work proceeds."}
+              </Text>
+            </>
+          ) : (
+          <>
           <Text style={s.importantItem}>
             <Text style={s.importantLabel}>{"1. Condominium Delivery : "}</Text>
             {"Please ensure all necessary permits for condo access are secured prior to delivery, delivery fee will apply even if the delivery is unsuccessful due to lack of permission to enter."}
@@ -599,6 +622,8 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
                 </Text>
               )}
             </>
+          )}
+          </>
           )}
         </View>
 
@@ -662,6 +687,7 @@ const InvoicePDFInputSchema = z.object({
   monthly_billing_date: z.string().max(50).optional().nullable(),
   auto_debit_effective_date: z.string().max(50).optional().nullable(),
   issued_by: z.string().max(100).optional().nullable(),
+  is_maintenance: z.boolean().optional().nullable(),
 })
 
 // ── Route handler ──────────────────────────────────────────────────────────────
