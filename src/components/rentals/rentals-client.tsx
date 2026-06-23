@@ -57,6 +57,7 @@ export type RentalOrder = {
   payex_proof_url: string | null
   customer_id_url: string | null
   leasing_contract_url: string | null
+  return_date: string | null
   follow_ups: RentalFollowUp[]
 }
 
@@ -285,6 +286,7 @@ function TerminationModal({
 }) {
   const [copied, setCopied] = useState(false)
   const [terminating, setTerminating] = useState(false)
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10))
 
   // Final charge date = next payment cycle (30 days from today)
   const finalChargeDate = new Date()
@@ -314,7 +316,7 @@ Please confirm and we will coordinate with our delivery team.`
       const res = await fetch(`/api/orders/${rental.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Returned" }),
+        body: JSON.stringify({ status: "Returned", return_date: returnDate || null }),
       })
       if (!res.ok) throw new Error("Failed to terminate")
       onTerminated(rental.id)
@@ -364,6 +366,19 @@ Please confirm and we will coordinate with our delivery team.`
               <span className="text-slate-500">Final charge date</span>
               <span className="font-medium text-amber-700">{finalChargeDateStr}</span>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-4">
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1.5">Equipment return date</span>
+              <input
+                type="date"
+                value={returnDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+                className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+              />
+              <p className="text-xs text-slate-400 mt-1">Saved on the order when you mark it returned. Defaults to today.</p>
+            </label>
           </div>
 
           <div className="rounded-xl bg-slate-900 p-4">
@@ -614,6 +629,7 @@ function EditRentalModal({
   const [productName, setProductName] = useState(rental.product_name ?? "")
   const [monthlyRental, setMonthlyRental] = useState(String(rental.monthly_rental ?? ""))
   const [deliveryDate, setDeliveryDate] = useState(rental.delivery_date ?? "")
+  const [returnDate, setReturnDate] = useState(rental.return_date ?? "")
   const [status, setStatus] = useState(rental.status ?? "Delivered")
   const [payexStatus, setPayexStatus] = useState(rental.payex_status ?? "")
   const [balance, setBalance] = useState(String(rental.balance ?? ""))
@@ -629,6 +645,7 @@ function EditRentalModal({
         product_name: productName.trim() || null,
         monthly_rental: monthlyRental === "" ? null : Number(monthlyRental),
         delivery_date: deliveryDate || null,
+        return_date: returnDate || null,
         status,
         payex_status: payexStatus || null,
         balance: balance === "" ? null : Number(balance),
@@ -692,6 +709,9 @@ function EditRentalModal({
               <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className={editInput} />
             </Field>
           </div>
+          <Field label="Equipment return date (leave blank if still on rental)">
+            <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className={editInput} />
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Status">
               <select value={status} onChange={(e) => setStatus(e.target.value)} className={editInput}>
