@@ -45,6 +45,7 @@ export type MaintenanceRequest = {
   scheduled_date: string | null
   scheduled_time: string | null
   completed_date: string | null
+  payment_date: string | null
   issue_description: string | null
   is_under_warranty: boolean
   is_active_rental: boolean
@@ -182,7 +183,13 @@ function buildInvoicePayload(r: MaintenanceRequest, docType: "invoice" | "receip
     })
   }
   const total = r.total ?? 0
-  const billDate = formatDateShort(r.completed_date ?? r.scheduled_date ?? r.requested_date)
+  // Bill date: prefer payment_date for receipts (the date money actually
+  // moved), else completed → scheduled → requested.
+  const billSource =
+    docType === "receipt"
+      ? r.payment_date ?? r.completed_date ?? r.scheduled_date ?? r.requested_date
+      : r.completed_date ?? r.scheduled_date ?? r.requested_date
+  const billDate = formatDateShort(billSource)
   const billNumber = `${r.order_case_code ?? "PP"}-M${r.id.slice(0, 6).toUpperCase()}`
   return {
     doc_type: docType,
@@ -198,6 +205,7 @@ function buildInvoicePayload(r: MaintenanceRequest, docType: "invoice" | "receip
     total,
     deposit: docType === "receipt" ? total : 0,
     balance: docType === "receipt" ? 0 : total,
+    payment_date: r.payment_date ? formatDateShort(r.payment_date) : undefined,
   }
 }
 
@@ -927,6 +935,7 @@ function EditMaintenanceModal({
   const [scheduledDate, setScheduledDate] = useState(request.scheduled_date ?? "")
   const [scheduledTime, setScheduledTime] = useState(request.scheduled_time ?? "")
   const [completedDate, setCompletedDate] = useState(request.completed_date ?? "")
+  const [paymentDate, setPaymentDate] = useState(request.payment_date ?? "")
   const [issueDescription, setIssueDescription] = useState(request.issue_description ?? "")
   const [transportFee, setTransportFee] = useState(String(request.transport_fee ?? 0))
   const [labourFee, setLabourFee] = useState(String(request.labour_fee ?? 0))
@@ -953,6 +962,7 @@ function EditMaintenanceModal({
           scheduled_date: scheduledDate || null,
           scheduled_time: scheduledTime.trim() || null,
           completed_date: completedDate || null,
+          payment_date: paymentDate || null,
           issue_description: issueDescription.trim() || null,
           transport_fee: effectiveTransport,
           labour_fee: effectiveLabour,
@@ -1042,6 +1052,16 @@ function EditMaintenanceModal({
               <label className="block text-xs font-medium text-slate-500 mb-1.5">Completed date</label>
               <input type="date" value={completedDate} onChange={(e) => setCompletedDate(e.target.value)} className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none" />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">Payment date</label>
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none"
+            />
+            <p className="text-xs text-slate-400 mt-1">Shown on the receipt PDF. Set this after the customer has paid.</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Issue description</label>

@@ -11,6 +11,7 @@ const ALLOWED_FIELDS = new Set([
   "scheduled_date",
   "scheduled_time",
   "completed_date",
+  "payment_date",
   "issue_description",
   "transport_fee",
   "labour_fee",

@@ -8,7 +8,7 @@ export default async function MaintenancePage() {
   const { data: requestsRaw, error: requestsError } = await supabase
     .from("maintenance_requests")
     .select(
-      "id, order_id, requested_date, scheduled_date, scheduled_time, completed_date, issue_description, is_under_warranty, is_active_rental, transport_fee, labour_fee, parts_description, parts_cost, total, status, agent, notes, created_at, orders(case_code, customer_name, phone, email, product_name, delivery_date, mode, location, address, units)"
+      "id, order_id, requested_date, scheduled_date, scheduled_time, completed_date, payment_date, issue_description, is_under_warranty, is_active_rental, transport_fee, labour_fee, parts_description, parts_cost, total, status, agent, notes, created_at, orders(case_code, customer_name, phone, email, product_name, delivery_date, mode, location, address, units)"
     )
     .order("requested_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -40,6 +40,7 @@ export default async function MaintenancePage() {
       scheduled_date: r.scheduled_date ?? null,
       scheduled_time: r.scheduled_time ?? null,
       completed_date: r.completed_date ?? null,
+      payment_date: r.payment_date ?? null,
       issue_description: r.issue_description ?? null,
       is_under_warranty: !!r.is_under_warranty,
       is_active_rental: !!r.is_active_rental,
