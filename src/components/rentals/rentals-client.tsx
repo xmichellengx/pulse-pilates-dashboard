@@ -20,6 +20,7 @@ import {
   Plus,
   Pencil,
   PhoneCall,
+  Search,
 } from "lucide-react"
 import { toast } from "sonner"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -1066,6 +1067,16 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
   const [documentsTarget, setDocumentsTarget] = useState<RentalOrder | null>(null)
   const [editTarget, setEditTarget] = useState<RentalOrder | null>(null)
   const [followUpTarget, setFollowUpTarget] = useState<{ rental: RentalOrder; monthMark: number | null } | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const trimmedQuery = searchQuery.trim().toLowerCase()
+  const filteredRentals = trimmedQuery
+    ? rentals.filter((r) => {
+        const code = (r.case_code ?? "").toLowerCase()
+        const name = (r.customer_name ?? "").toLowerCase()
+        return code.includes(trimmedQuery) || name.includes(trimmedQuery)
+      })
+    : rentals
 
   function handleConverted(id: string) {
     setRentals((prev) => prev.filter((r) => r.id !== id))
@@ -1221,18 +1232,34 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
 
       {/* Active rentals table */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-800">Active Rentals</span>
-          <span className="inline-flex items-center justify-center rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-100">
-            {totalActive}
-          </span>
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-800">Active Rentals</span>
+            <span className="inline-flex items-center justify-center rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-100">
+              {trimmedQuery ? `${filteredRentals.length} of ${totalActive}` : totalActive}
+            </span>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search order # or customer…"
+              className="h-8 w-64 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-sm text-slate-700 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+            />
+          </div>
         </div>
 
-        {rentals.length === 0 ? (
+        {filteredRentals.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Repeat className="h-8 w-8 text-slate-300 mb-3" />
-            <p className="text-sm font-medium text-slate-600">No active rentals</p>
-            <p className="text-xs text-slate-400 mt-1">Active rental orders will appear here</p>
+            <p className="text-sm font-medium text-slate-600">
+              {trimmedQuery ? "No rentals match your search" : "No active rentals"}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {trimmedQuery ? `Searched for "${searchQuery.trim()}"` : "Active rental orders will appear here"}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -1251,7 +1278,7 @@ export function RentalsClient({ rentals: initialRentals }: RentalsClientProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rentals.map((rental) => {
+                {filteredRentals.map((rental) => {
                   const months = calcMonthsElapsed(rental.delivery_date)
                   const monthsDisplay = months.toFixed(1)
                   const monthsBadgeColor = getMonthsBadge(months)
