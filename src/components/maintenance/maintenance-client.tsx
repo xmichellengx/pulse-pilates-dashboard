@@ -16,6 +16,8 @@ import {
   CalendarDays,
   Pencil,
   Trash2,
+  Copy,
+  FileDown,
 } from "lucide-react"
 import { toast } from "sonner"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -26,10 +28,14 @@ export type OrderOption = {
   case_code: string | null
   customer_name: string
   phone: string | null
+  email: string | null
   product_name: string | null
   delivery_date: string | null
   mode: string | null
   status: string | null
+  location: string | null
+  address: string | null
+  units: number | null
 }
 
 export type MaintenanceRequest = {
@@ -37,6 +43,7 @@ export type MaintenanceRequest = {
   order_id: string
   requested_date: string
   scheduled_date: string | null
+  scheduled_time: string | null
   completed_date: string | null
   issue_description: string | null
   is_under_warranty: boolean
@@ -53,9 +60,13 @@ export type MaintenanceRequest = {
   order_case_code: string | null
   order_customer_name: string | null
   order_phone: string | null
+  order_email: string | null
   order_product_name: string | null
   order_delivery_date: string | null
   order_mode: string | null
+  order_location: string | null
+  order_address: string | null
+  order_units: number | null
 }
 
 const STATUS_OPTIONS = ["Pending", "Scheduled", "Completed", "Cancelled"] as const
@@ -84,6 +95,132 @@ function isActiveRental(order: OrderOption | null): boolean {
   if (!order) return false
   const modeLooksLikeRental = !!order.mode && /ental/i.test(order.mode)
   return modeLooksLikeRental && (order.status === "Delivered" || order.status === "Pending Delivered")
+}
+
+function formatDateShort(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
+}
+
+function buildTripOrderMessage(r: MaintenanceRequest): string {
+  const dateLine = r.scheduled_date ? formatDateShort(r.scheduled_date) : formatDateShort(r.requested_date)
+  const timePart = r.scheduled_time ? ` (${r.scheduled_time})` : ""
+  const units = r.order_units ?? 1
+  const product = r.order_product_name ?? "Equipment"
+  const lines = [
+    `*${dateLine} Maintenance*`,
+    "",
+    `*${r.order_case_code ?? "(no case code)"}* - ${r.order_customer_name ?? "Customer"}${timePart}`,
+    "",
+    `Item: ${units} x ${product}`,
+  ]
+  if (r.issue_description) lines.push(`Problem: ${r.issue_description}`)
+  if (r.notes) lines.push(`Remarks: ${r.notes}`)
+  lines.push("")
+  if (r.order_location) lines.push(`Location: ${r.order_location}`)
+  if (r.order_address) lines.push(`Address: ${r.order_address}`)
+  if (r.order_customer_name) lines.push(`Name: ${r.order_customer_name}`)
+  if (r.order_phone) lines.push(`Phone: ${r.order_phone}`)
+  return lines.join("\n")
+}
+
+function buildSalesMessage(r: MaintenanceRequest): string {
+  const transportLabour = (r.transport_fee ?? 0) + (r.labour_fee ?? 0)
+  const lines = [
+    `*${r.order_case_code ?? "(no case code)"}- Maintenance*`,
+    "",
+  ]
+  if ((r.parts_cost ?? 0) > 0) {
+    const partsLabel = r.parts_description?.trim() || "Parts"
+    lines.push(`${partsLabel}: RM ${r.parts_cost.toLocaleString()}`)
+  }
+  if (transportLabour > 0) {
+    lines.push(`Transportation and labour fee: RM ${transportLabour.toLocaleString()}`)
+  }
+  if ((r.parts_cost ?? 0) === 0 && transportLabour === 0) {
+    lines.push("All charges waived (under warranty / active rental).")
+  }
+  lines.push("")
+  lines.push(`Total: RM ${(r.total ?? 0).toLocaleString()}`)
+  lines.push("")
+  if (r.order_location) lines.push(`Location: ${r.order_location}`)
+  if (r.order_address) lines.push(`Address: ${r.order_address}`)
+  if (r.order_customer_name) lines.push(`Name: ${r.order_customer_name}`)
+  if (r.order_phone) lines.push(`Phone: ${r.order_phone}`)
+  lines.push("")
+  lines.push("Pulse Pilates Sdn Bhd")
+  lines.push("5140 1249 2051")
+  lines.push("Maybank")
+  return lines.join("\n")
+}
+
+function buildInvoicePayload(r: MaintenanceRequest, docType: "invoice" | "receipt") {
+  const transportLabour = (r.transport_fee ?? 0) + (r.labour_fee ?? 0)
+  const items: Array<{ description: string; qty: number; unit_price: number; amount: number }> = []
+  if ((r.parts_cost ?? 0) > 0) {
+    items.push({
+      description: r.parts_description?.trim() || "Parts",
+      qty: 1,
+      unit_price: r.parts_cost,
+      amount: r.parts_cost,
+    })
+  }
+  if (transportLabour > 0) {
+    items.push({
+      description: "Transportation and labour fee",
+      qty: 1,
+      unit_price: transportLabour,
+      amount: transportLabour,
+    })
+  }
+  if (items.length === 0) {
+    items.push({
+      description: "Maintenance service (charges waived)",
+      qty: 1,
+      unit_price: 0,
+      amount: 0,
+    })
+  }
+  const total = r.total ?? 0
+  const billDate = formatDateShort(r.completed_date ?? r.scheduled_date ?? r.requested_date)
+  const billNumber = `${r.order_case_code ?? "PP"}-M${r.id.slice(0, 6).toUpperCase()}`
+  return {
+    doc_type: docType,
+    bill_number: billNumber,
+    bill_date: billDate,
+    reference: r.order_case_code ?? undefined,
+    customer_name: r.order_customer_name ?? "Customer",
+    customer_email: r.order_email ?? undefined,
+    customer_phone: r.order_phone ?? undefined,
+    customer_location: r.order_location ?? undefined,
+    customer_address: r.order_address ?? undefined,
+    items,
+    total,
+    deposit: docType === "receipt" ? total : 0,
+    balance: docType === "receipt" ? 0 : total,
+  }
+}
+
+async function downloadPDF(r: MaintenanceRequest, docType: "invoice" | "receipt") {
+  const payload = buildInvoicePayload(r, docType)
+  const res = await fetch("/api/invoices/pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: "Failed to generate PDF" }))
+    throw new Error(error || "Failed to generate PDF")
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `${payload.bill_number}${docType === "receipt" ? "-receipt" : ""}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 interface MaintenanceClientProps {
@@ -152,10 +289,7 @@ export function MaintenanceClient({ requests: initialRequests, orderOptions }: M
         <NewMaintenanceModal
           orderOptions={orderOptions}
           onClose={() => setShowNew(false)}
-          onCreated={(r) => {
-            handleCreated(r)
-            setShowNew(false)
-          }}
+          onCreated={handleCreated}
         />
       )}
       {editTarget && (
@@ -315,6 +449,95 @@ export function MaintenanceClient({ requests: initialRequests, orderOptions }: M
   )
 }
 
+function MaintenanceDocuments({ request }: { request: MaintenanceRequest }) {
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState<"invoice" | "receipt" | null>(null)
+
+  const tripMsg = useMemo(() => buildTripOrderMessage(request), [request])
+  const salesMsg = useMemo(() => buildSalesMessage(request), [request])
+
+  async function copy(key: string, text: string) {
+    await navigator.clipboard.writeText(text)
+    setCopiedKey(key)
+    toast.success(`${key === "trip" ? "Trip order" : "Sales message"} copied`)
+    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 2000)
+  }
+
+  async function handleDownload(docType: "invoice" | "receipt") {
+    setDownloading(docType)
+    try {
+      await downloadPDF(request, docType)
+      toast.success(`${docType === "receipt" ? "Receipt" : "Invoice"} downloaded`)
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : "PDF failed")
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-slate-200 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <Truck className="h-3.5 w-3.5 text-slate-500" />
+            <span className="text-xs font-semibold text-slate-700">Trip order (for delivery team)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => copy("trip", tripMsg)}
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-white text-slate-700 text-xs font-medium hover:bg-slate-100 transition-colors border border-slate-200"
+          >
+            {copiedKey === "trip" ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+            {copiedKey === "trip" ? "Copied!" : "Copy"}
+          </button>
+        </div>
+        <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed p-4 bg-white">{tripMsg}</pre>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 bg-slate-50 px-4 py-2.5 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <Hammer className="h-3.5 w-3.5 text-slate-500" />
+            <span className="text-xs font-semibold text-slate-700">Sales message (for customer)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => copy("sales", salesMsg)}
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-white text-slate-700 text-xs font-medium hover:bg-slate-100 transition-colors border border-slate-200"
+          >
+            {copiedKey === "sales" ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+            {copiedKey === "sales" ? "Copied!" : "Copy"}
+          </button>
+        </div>
+        <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed p-4 bg-white">{salesMsg}</pre>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => handleDownload("invoice")}
+          disabled={downloading !== null}
+          className="flex flex-1 items-center justify-center gap-1.5 h-9 rounded-lg bg-white border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60"
+        >
+          {downloading === "invoice" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+          Invoice PDF
+        </button>
+        <button
+          type="button"
+          onClick={() => handleDownload("receipt")}
+          disabled={downloading !== null}
+          className="flex flex-1 items-center justify-center gap-1.5 h-9 rounded-lg bg-white border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60"
+        >
+          {downloading === "receipt" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+          Receipt PDF
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -340,12 +563,14 @@ function NewMaintenanceModal({
   const [selectedOrder, setSelectedOrder] = useState<OrderOption | null>(null)
   const [issueDescription, setIssueDescription] = useState("")
   const [scheduledDate, setScheduledDate] = useState("")
+  const [scheduledTime, setScheduledTime] = useState("")
   const [transportFee, setTransportFee] = useState<string>(String(DEFAULT_TRANSPORT))
   const [labourFee, setLabourFee] = useState<string>(String(DEFAULT_LABOUR))
   const [partsDescription, setPartsDescription] = useState("")
   const [partsCost, setPartsCost] = useState<string>("")
   const [notes, setNotes] = useState("")
   const [saving, setSaving] = useState(false)
+  const [savedRequest, setSavedRequest] = useState<MaintenanceRequest | null>(null)
 
   const filteredOrders = useMemo(() => {
     const q = orderQuery.trim().toLowerCase()
@@ -381,6 +606,7 @@ function NewMaintenanceModal({
         body: JSON.stringify({
           order_id: selectedOrder.id,
           scheduled_date: scheduledDate || null,
+          scheduled_time: scheduledTime.trim() || null,
           issue_description: issueDescription.trim() || null,
           transport_fee: effectiveTransport,
           labour_fee: effectiveLabour,
@@ -399,10 +625,15 @@ function NewMaintenanceModal({
         order_case_code: selectedOrder.case_code,
         order_customer_name: selectedOrder.customer_name,
         order_phone: selectedOrder.phone,
+        order_email: selectedOrder.email,
         order_product_name: selectedOrder.product_name,
         order_delivery_date: selectedOrder.delivery_date,
         order_mode: selectedOrder.mode,
+        order_location: selectedOrder.location,
+        order_address: selectedOrder.address,
+        order_units: selectedOrder.units,
       }
+      setSavedRequest(created)
       onCreated(created)
       toast.success("Maintenance request created")
     } catch (err) {
@@ -420,15 +651,30 @@ function NewMaintenanceModal({
           <div>
             <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
               <Wrench className="h-4 w-4 text-indigo-500" />
-              New maintenance request
+              {savedRequest ? "Maintenance request created" : "New maintenance request"}
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">Service for an existing customer's equipment.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {savedRequest ? "Copy the messages or download the PDFs below." : "Service for an existing customer's equipment."}
+            </p>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        {savedRequest ? (
+          <>
+            <div className="px-6 py-5">
+              <MaintenanceDocuments request={savedRequest} />
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
+              <button onClick={onClose} className="inline-flex items-center h-9 px-4 rounded-lg bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-colors">
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+        <>
         <div className="px-6 py-5 space-y-4">
           {/* Order picker */}
           <div>
@@ -524,14 +770,26 @@ function NewMaintenanceModal({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Scheduled visit date</label>
-            <input
-              type="date"
-              value={scheduledDate}
-              onChange={(e) => setScheduledDate(e.target.value)}
-              className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Scheduled visit date</label>
+              <input
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+                className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Time (free text)</label>
+              <input
+                type="text"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                placeholder="e.g. 10AM, 2:30PM"
+                className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Charges */}
@@ -607,6 +865,8 @@ function NewMaintenanceModal({
             {saving ? "Saving…" : "Create request"}
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   )
@@ -665,6 +925,7 @@ function EditMaintenanceModal({
   onDeleted: (id: string) => void
 }) {
   const [scheduledDate, setScheduledDate] = useState(request.scheduled_date ?? "")
+  const [scheduledTime, setScheduledTime] = useState(request.scheduled_time ?? "")
   const [completedDate, setCompletedDate] = useState(request.completed_date ?? "")
   const [issueDescription, setIssueDescription] = useState(request.issue_description ?? "")
   const [transportFee, setTransportFee] = useState(String(request.transport_fee ?? 0))
@@ -690,6 +951,7 @@ function EditMaintenanceModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scheduled_date: scheduledDate || null,
+          scheduled_time: scheduledTime.trim() || null,
           completed_date: completedDate || null,
           issue_description: issueDescription.trim() || null,
           transport_fee: effectiveTransport,
@@ -771,9 +1033,15 @@ function EditMaintenanceModal({
               <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none" />
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Completed date</label>
-            <input type="date" value={completedDate} onChange={(e) => setCompletedDate(e.target.value)} className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Time (free text)</label>
+              <input type="text" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} placeholder="e.g. 10AM, 2:30PM" className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Completed date</label>
+              <input type="date" value={completedDate} onChange={(e) => setCompletedDate(e.target.value)} className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:border-indigo-400 focus:outline-none" />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Issue description</label>
@@ -805,6 +1073,11 @@ function EditMaintenanceModal({
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none" />
+          </div>
+
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Documents</p>
+            <MaintenanceDocuments request={request} />
           </div>
         </div>
 

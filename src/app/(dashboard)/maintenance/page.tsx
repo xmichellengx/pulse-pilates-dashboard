@@ -8,7 +8,7 @@ export default async function MaintenancePage() {
   const { data: requestsRaw, error: requestsError } = await supabase
     .from("maintenance_requests")
     .select(
-      "id, order_id, requested_date, scheduled_date, completed_date, issue_description, is_under_warranty, is_active_rental, transport_fee, labour_fee, parts_description, parts_cost, total, status, agent, notes, created_at, orders(case_code, customer_name, phone, product_name, delivery_date, mode)"
+      "id, order_id, requested_date, scheduled_date, scheduled_time, completed_date, issue_description, is_under_warranty, is_active_rental, transport_fee, labour_fee, parts_description, parts_cost, total, status, agent, notes, created_at, orders(case_code, customer_name, phone, email, product_name, delivery_date, mode, location, address, units)"
     )
     .order("requested_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -21,9 +21,13 @@ export default async function MaintenancePage() {
     case_code: string | null
     customer_name: string | null
     phone: string | null
+    email: string | null
     product_name: string | null
     delivery_date: string | null
     mode: string | null
+    location: string | null
+    address: string | null
+    units: number | null
   }
 
   const requests: MaintenanceRequest[] = (requestsRaw ?? []).map((r) => {
@@ -34,6 +38,7 @@ export default async function MaintenancePage() {
       order_id: r.order_id,
       requested_date: r.requested_date,
       scheduled_date: r.scheduled_date ?? null,
+      scheduled_time: r.scheduled_time ?? null,
       completed_date: r.completed_date ?? null,
       issue_description: r.issue_description ?? null,
       is_under_warranty: !!r.is_under_warranty,
@@ -50,9 +55,13 @@ export default async function MaintenancePage() {
       order_case_code: order?.case_code ?? null,
       order_customer_name: order?.customer_name ?? null,
       order_phone: order?.phone ?? null,
+      order_email: order?.email ?? null,
       order_product_name: order?.product_name ?? null,
       order_delivery_date: order?.delivery_date ?? null,
       order_mode: order?.mode ?? null,
+      order_location: order?.location ?? null,
+      order_address: order?.address ?? null,
+      order_units: order?.units ?? null,
     }
   })
 
@@ -60,7 +69,7 @@ export default async function MaintenancePage() {
   // 500 most recent should comfortably cover existing customer history.
   const { data: ordersRaw, error: ordersError } = await supabase
     .from("orders")
-    .select("id, case_code, customer_name, phone, product_name, delivery_date, mode, status")
+    .select("id, case_code, customer_name, phone, email, product_name, delivery_date, mode, status, location, address, units")
     .not("delivery_date", "is", null)
     .order("delivery_date", { ascending: false })
     .limit(500)
@@ -73,10 +82,14 @@ export default async function MaintenancePage() {
     case_code: o.case_code ?? null,
     customer_name: o.customer_name ?? "",
     phone: o.phone ?? null,
+    email: o.email ?? null,
     product_name: o.product_name ?? null,
     delivery_date: o.delivery_date ?? null,
     mode: o.mode ?? null,
     status: o.status ?? null,
+    location: o.location ?? null,
+    address: o.address ?? null,
+    units: o.units ?? null,
   }))
 
   return (

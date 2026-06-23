@@ -9,6 +9,7 @@ const supabase = createServiceClient(
 const VALID_STATUSES = new Set(["Pending", "Scheduled", "Completed", "Cancelled"])
 const ALLOWED_FIELDS = new Set([
   "scheduled_date",
+  "scheduled_time",
   "completed_date",
   "issue_description",
   "transport_fee",

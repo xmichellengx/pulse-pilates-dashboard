@@ -52,6 +52,7 @@ export async function POST(req: Request) {
     order_id: orderId,
     requested_date: typeof body.requested_date === "string" && body.requested_date ? body.requested_date : new Date().toISOString().slice(0, 10),
     scheduled_date: typeof body.scheduled_date === "string" && body.scheduled_date ? body.scheduled_date : null,
+    scheduled_time: typeof body.scheduled_time === "string" && body.scheduled_time.trim() ? body.scheduled_time.trim() : null,
     completed_date: typeof body.completed_date === "string" && body.completed_date ? body.completed_date : null,
     issue_description: typeof body.issue_description === "string" && body.issue_description.trim() ? body.issue_description.trim() : null,
     is_under_warranty: isUnderWarranty,
