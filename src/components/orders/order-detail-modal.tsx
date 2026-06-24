@@ -53,7 +53,7 @@ const MODE_COLORS: Record<string, string> = {
   KOL: "bg-pink-50 text-pink-700 border-pink-100",
 }
 
-const QUICK_STATUSES = ["Pending Shipment Arrival", "Pending Delivery", "Delivered"] as const
+const QUICK_STATUSES = ["Pending Shipment Arrival", "Pending Delivery", "Delivered", "Cancelled"] as const
 
 const MODE_OPTIONS = [
   "Direct Purchase",
@@ -318,6 +318,12 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
 
   async function handleStatusUpdate(newStatus: string) {
     if (newStatus === currentOrder.status) return
+    if (newStatus === "Cancelled") {
+      const amount = currentOrder.amount ?? 0
+      if (!confirm(`Cancel this order? RM ${amount.toLocaleString()} will be deducted from sales totals (Cancelled orders are excluded from revenue aggregations).`)) {
+        return
+      }
+    }
     setUpdatingStatus(newStatus)
     try {
       const res = await fetch(`/api/orders/${currentOrder.id}`, {
@@ -674,6 +680,7 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                       s === "Delivered" ? "bg-green-500 text-white border-green-500" :
                       s === "Pending Delivery" ? "bg-amber-500 text-white border-amber-500" :
                       s === "Pending Shipment Arrival" ? "bg-orange-500 text-white border-orange-500" :
+                      s === "Cancelled" ? "bg-red-500 text-white border-red-500" :
                       "bg-slate-700 text-white border-slate-700"
                     return (
                       <button

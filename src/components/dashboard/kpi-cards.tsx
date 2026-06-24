@@ -83,11 +83,12 @@ export async function KpiCards() {
       .gte("payment_date", monthStart)
       .not("status", "in", '("Cancelled","Returned")'),
 
-    // Orders MTD
+    // Orders MTD (cancelled + returned excluded to match Revenue MTD)
     supabase
       .from("orders")
       .select("id", { count: "exact", head: true })
-      .gte("payment_date", monthStart),
+      .gte("payment_date", monthStart)
+      .not("status", "in", '("Cancelled","Returned")'),
 
     // Active Rentals: mode contains rental, delivered, balance cleared
     supabase
