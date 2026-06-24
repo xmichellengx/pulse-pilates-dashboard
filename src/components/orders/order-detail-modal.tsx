@@ -682,6 +682,9 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                       s === "Pending Shipment Arrival" ? "bg-orange-500 text-white border-orange-500" :
                       s === "Cancelled" ? "bg-red-500 text-white border-red-500" :
                       "bg-slate-700 text-white border-slate-700"
+                    // For Cancelled, the dormant label is "Cancel" (the action)
+                    // and the active label stays "Cancelled" (the state).
+                    const label = s === "Cancelled" && !isActive ? "Cancel" : s
                     return (
                       <button
                         key={s}
@@ -694,7 +697,7 @@ export function OrderDetailModal({ order, onClose, onUpdate, onDelete }: OrderDe
                         }`}
                       >
                         {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-                        {s}
+                        {label}
                       </button>
                     )
                   })}
