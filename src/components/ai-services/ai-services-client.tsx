@@ -332,6 +332,7 @@ export function AiServicesClient({ engagements: initialEng, invoices: initialInv
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Payment date</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -357,6 +358,28 @@ export function AiServicesClient({ engagements: initialEng, invoices: initialInv
                         <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium capitalize", INVOICE_STATUS_COLORS[i.status])}>
                           {i.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Delete invoice ${i.invoice_number}? This cannot be undone.`)) return
+                              try {
+                                const res = await fetch(`/api/ai-invoices/${i.id}`, { method: "DELETE" })
+                                if (!res.ok) throw new Error("Delete failed")
+                                handleInvoiceDeleted(i.id)
+                                toast.success("Invoice deleted")
+                              } catch (err) {
+                                console.error(err)
+                                toast.error(err instanceof Error ? err.message : "Delete failed")
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-red-600 text-xs font-medium hover:bg-red-50 transition-colors"
+                            title="Delete invoice"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -1068,7 +1091,7 @@ function GenerateInvoiceModal({
                           Void
                         </button>
                       )}
-                      <button onClick={() => handleDelete(inv)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-red-600 text-xs font-medium hover:bg-red-50 ml-auto">
+                      <button onClick={() => handleDelete(inv)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-red-50 text-red-700 border border-red-100 text-xs font-medium hover:bg-red-100 transition-colors ml-auto">
                         <Trash2 className="h-3 w-3" />
                         Delete
                       </button>
