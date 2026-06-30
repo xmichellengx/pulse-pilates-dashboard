@@ -337,6 +337,10 @@ export interface InvoicePDFInput {
   // When true, swaps the T&Cs for AI-services engagement terms
   // (scope, maintenance scope, out-of-scope work, payment terms).
   is_ai_service?: boolean
+  // Optional "Maintenance Schedule" text block, rendered above the
+  // T&Cs. Used on AI-service upfront invoices to surface the recurring
+  // maintenance fee plan to the customer.
+  maintenance_schedule_text?: string
 }
 
 function fmt(n: number) {
@@ -375,6 +379,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
     issued_by,
     is_maintenance,
     is_ai_service,
+    maintenance_schedule_text,
     logoSrc,
   } = props
 
@@ -564,6 +569,14 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
           </>
         )}
 
+        {/* ── Maintenance Schedule (AI service upfront invoices) ── */}
+        {maintenance_schedule_text && (
+          <View style={s.importantBox}>
+            <Text style={s.importantTitle}>Maintenance Schedule</Text>
+            <Text style={s.importantItem}>{maintenance_schedule_text}</Text>
+          </View>
+        )}
+
         {/* ── Important Notes ── */}
         <View style={s.importantBox}>
           <Text style={s.importantTitle}>Important - Please Read</Text>
@@ -712,6 +725,7 @@ const InvoicePDFInputSchema = z.object({
   issued_by: z.string().max(100).optional().nullable(),
   is_maintenance: z.boolean().optional().nullable(),
   is_ai_service: z.boolean().optional().nullable(),
+  maintenance_schedule_text: z.string().max(2000).optional().nullable(),
 })
 
 // ── Route handler ──────────────────────────────────────────────────────────────

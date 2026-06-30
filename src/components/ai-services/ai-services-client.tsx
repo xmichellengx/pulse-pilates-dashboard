@@ -260,7 +260,7 @@ export function AiServicesClient({ engagements: initialEng, invoices: initialInv
                       <td className="px-4 py-3.5 text-xs text-slate-600">
                         {e.maintenance_start_date ? (
                           <div className="space-y-0.5">
-                            <div>Starts {formatDate(e.maintenance_start_date)}</div>
+                            <div>Delivery: {formatDate(e.maintenance_start_date)}</div>
                             <div className="text-slate-500">
                               {e.trial_months_free}mo FOC · then RM {e.year_one_monthly}/mo (yr 1) · RM {e.year_two_plus_monthly}/mo (yr 2+)
                             </div>
@@ -575,8 +575,9 @@ function EngagementModal(props:
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Maintenance start date</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Estimated delivery date</label>
                 <input type="date" value={maintenanceStartDate} onChange={(e) => setMaintenanceStartDate(e.target.value)} className={inputCls} />
+                <p className="text-xs text-slate-400 mt-1">FOC trial + monthly billing schedule are computed from this date.</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Trial months (FOC)</label>
@@ -676,6 +677,7 @@ function GenerateInvoiceModal({
   const [periodYear, setPeriodYear] = useState(today.getFullYear())
   const [periodMonth, setPeriodMonth] = useState(today.getMonth() + 1)
   const [amount, setAmount] = useState("")
+  const [invoiceNumber, setInvoiceNumber] = useState("")
   const [invoiceDate, setInvoiceDate] = useState(today.toISOString().slice(0, 10))
   const [dueDays, setDueDays] = useState(14)
   const [notes, setNotes] = useState("")
@@ -715,6 +717,7 @@ function GenerateInvoiceModal({
         due_date: dueDate.toISOString().slice(0, 10),
         notes: notes.trim() || null,
         status: "draft",
+        invoice_number: invoiceNumber.trim() || undefined,
       }
       const res = await fetch("/api/ai-invoices", {
         method: "POST",
@@ -730,6 +733,7 @@ function GenerateInvoiceModal({
       toast.success(`Invoice ${inv.invoice_number} created`)
       setAmount("")
       setNotes("")
+      setInvoiceNumber("")
     } catch (err) {
       console.error(err)
       toast.error(err instanceof Error ? err.message : "Failed")
@@ -807,6 +811,29 @@ function GenerateInvoiceModal({
         } as never)
       }
 
+      // Maintenance schedule text — only on upfront invoices, only when plan
+      // is set. Surfaces the recurring fee plan to the customer so they know
+      // what to expect after the upfront.
+      const showSchedule = inv.invoice_type === "upfront" && !!engagement.maintenance_start_date
+      const maintenanceScheduleText = showSchedule
+        ? (() => {
+            const delivery = formatDate(engagement.maintenance_start_date!)
+            const trial = engagement.trial_months_free
+            const y1 = engagement.year_one_monthly
+            const y2 = engagement.year_two_plus_monthly
+            const trialLine = trial > 0
+              ? `First ${trial} month${trial > 1 ? "s" : ""} from delivery: FOC (free of charge).`
+              : `No FOC trial period.`
+            return [
+              `Estimated delivery: ${delivery}. The recurring maintenance fee begins from delivery.`,
+              trialLine,
+              y1 > 0 ? `Year 1 (after FOC trial): RM ${y1.toLocaleString()}/month.` : null,
+              y2 > 0 ? `Year 2 onwards: RM ${y2.toLocaleString()}/month.` : null,
+              engagement.scope_notes ?? null,
+            ].filter(Boolean).join("\n")
+          })()
+        : undefined
+
       const payload = {
         doc_type: kind,
         bill_number: inv.invoice_number,
@@ -821,7 +848,9 @@ function GenerateInvoiceModal({
         deposit: kind === "receipt" ? inv.amount : 0,
         balance: kind === "receipt" ? 0 : inv.amount,
         payment_date: inv.payment_date ? formatShortDate(inv.payment_date) : undefined,
+        issued_by: "Michelle",
         is_ai_service: true,
+        maintenance_schedule_text: maintenanceScheduleText,
       }
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",
@@ -930,6 +959,17 @@ function GenerateInvoiceModal({
                 <button type="button" onClick={applyComputed} className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
                   Use this
                 </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Invoice number (leave blank to auto-generate)</label>
+                <input
+                  type="text"
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                  placeholder={`PPAI-${today.getFullYear()}-XXXX`}
+                  className={inputCls}
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-3">

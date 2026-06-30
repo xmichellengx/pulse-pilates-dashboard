@@ -24,18 +24,24 @@ export async function POST(req: Request) {
     return Response.json({ error: "invoice_type must be upfront or maintenance" }, { status: 400 })
   }
 
-  // Generate sequential invoice number AI-YYYY-NNNN
-  const { data: seqRow, error: seqErr } = await supabase.rpc("nextval", { sequence_name: "ai_invoice_seq" } as never)
-  let seqNum: number
-  if (seqErr || typeof seqRow !== "number") {
-    // Fallback: count existing invoices + 1 (good enough for low-volume side business)
-    const { count } = await supabase.from("ai_invoices").select("id", { count: "exact", head: true })
-    seqNum = (count ?? 0) + 1
+  // Invoice number: caller may override (must be unique, validated by DB).
+  // Otherwise generate sequential PPAI-YYYY-NNNN.
+  let invoiceNumber: string
+  const overrideNumber = typeof body.invoice_number === "string" ? body.invoice_number.trim() : ""
+  if (overrideNumber) {
+    invoiceNumber = overrideNumber
   } else {
-    seqNum = seqRow
+    const { data: seqRow, error: seqErr } = await supabase.rpc("nextval", { sequence_name: "ai_invoice_seq" } as never)
+    let seqNum: number
+    if (seqErr || typeof seqRow !== "number") {
+      const { count } = await supabase.from("ai_invoices").select("id", { count: "exact", head: true })
+      seqNum = (count ?? 0) + 1
+    } else {
+      seqNum = seqRow
+    }
+    const year = new Date().getFullYear()
+    invoiceNumber = `PPAI-${year}-${String(seqNum).padStart(4, "0")}`
   }
-  const year = new Date().getFullYear()
-  const invoiceNumber = `AI-${year}-${String(seqNum).padStart(4, "0")}`
 
   const periodYear = typeof body.period_year === "number" ? body.period_year : null
   const periodMonth = typeof body.period_month === "number" ? body.period_month : null
