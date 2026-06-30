@@ -114,7 +114,11 @@ const s = StyleSheet.create({
     marginBottom: 1,
   },
   billMetaBlock: {
-    alignItems: "flex-end",
+    // Don't right-align each row individually — that makes rows of different
+    // widths have different left edges, so the colons don't line up across
+    // Bill Number / Bill Date / Reference. The block itself is already pinned
+    // to the right of the page via billRow's space-between, so rows align
+    // consistently on their left edge (= block's left edge) → colons line up.
   },
   billMetaRow: {
     flexDirection: "row",
