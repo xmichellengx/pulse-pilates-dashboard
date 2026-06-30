@@ -334,6 +334,9 @@ export interface InvoicePDFInput {
   // 3mo spring / 6mo body equipment warranty — irrelevant for a
   // service call on already-delivered equipment).
   is_maintenance?: boolean
+  // When true, swaps the T&Cs for AI-services engagement terms
+  // (scope, maintenance scope, out-of-scope work, payment terms).
+  is_ai_service?: boolean
 }
 
 function fmt(n: number) {
@@ -371,6 +374,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
     auto_debit_effective_date,
     issued_by,
     is_maintenance,
+    is_ai_service,
     logoSrc,
   } = props
 
@@ -480,25 +484,29 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
           </View>
         </View>
 
-        {/* ── Delivery Details ── */}
-        <Text style={s.sectionTitle}>Delivery Details</Text>
-        {delivery_date && (
-          <View style={s.sectionLine}>
-            <Text style={s.sectionKey}>Delivery Date</Text>
-            <Text style={s.sectionVal}>{": " + delivery_date}</Text>
-          </View>
-        )}
-        {estimated_delivery && (
-          <View style={s.sectionLine}>
-            <Text style={s.sectionKey}>Est. Delivery</Text>
-            <Text style={s.sectionVal}>{": " + estimated_delivery}</Text>
-          </View>
-        )}
-        {delivery_location && (
-          <View style={s.sectionLine}>
-            <Text style={s.sectionKey}>Delivery Location</Text>
-            <Text style={s.sectionVal}>{": " + delivery_location}</Text>
-          </View>
+        {/* ── Delivery Details (hidden for AI-service invoices — no physical delivery) ── */}
+        {!is_ai_service && (
+          <>
+            <Text style={s.sectionTitle}>Delivery Details</Text>
+            {delivery_date && (
+              <View style={s.sectionLine}>
+                <Text style={s.sectionKey}>Delivery Date</Text>
+                <Text style={s.sectionVal}>{": " + delivery_date}</Text>
+              </View>
+            )}
+            {estimated_delivery && (
+              <View style={s.sectionLine}>
+                <Text style={s.sectionKey}>Est. Delivery</Text>
+                <Text style={s.sectionVal}>{": " + estimated_delivery}</Text>
+              </View>
+            )}
+            {delivery_location && (
+              <View style={s.sectionLine}>
+                <Text style={s.sectionKey}>Delivery Location</Text>
+                <Text style={s.sectionVal}>{": " + delivery_location}</Text>
+              </View>
+            )}
+          </>
         )}
 
         {/* ── Warranty (auto-derived from delivery date for receipts) ── */}
@@ -560,7 +568,22 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
         <View style={s.importantBox}>
           <Text style={s.importantTitle}>Important - Please Read</Text>
 
-          {is_maintenance ? (
+          {is_ai_service ? (
+            <>
+              <Text style={s.importantItem}>
+                <Text style={s.importantLabel}>{"1. Scope of Services : "}</Text>
+                {"Services rendered are as per the agreed scope. Any work outside this scope (new features, additional integrations, scope expansions) will be quoted separately before work proceeds."}
+              </Text>
+              <Text style={s.importantItem}>
+                <Text style={s.importantLabel}>{"2. Maintenance Coverage : "}</Text>
+                {"Maintenance covers system errors, bug fixes, debugging, and routine system upkeep arising from defects in the originally delivered scope. It does not cover new feature development, design changes, third-party service outages, or work caused by client-side changes."}
+              </Text>
+              <Text style={s.importantItem}>
+                <Text style={s.importantLabel}>{"3. Payment Terms : "}</Text>
+                {"Payment is due within 14 days of the invoice date. Late payment may result in suspension of services until the account is settled."}
+              </Text>
+            </>
+          ) : is_maintenance ? (
             <>
               <Text style={s.importantItem}>
                 <Text style={s.importantLabel}>{"1. Service Inspection : "}</Text>
@@ -688,6 +711,7 @@ const InvoicePDFInputSchema = z.object({
   auto_debit_effective_date: z.string().max(50).optional().nullable(),
   issued_by: z.string().max(100).optional().nullable(),
   is_maintenance: z.boolean().optional().nullable(),
+  is_ai_service: z.boolean().optional().nullable(),
 })
 
 // ── Route handler ──────────────────────────────────────────────────────────────

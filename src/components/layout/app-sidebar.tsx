@@ -13,6 +13,7 @@ import {
   Phone,
   Repeat,
   Wrench,
+  Sparkles,
   LogOut,
   Plus,
   ChevronUp,
@@ -85,18 +86,29 @@ const EMAIL_TO_NAME: Record<string, string> = {
   "aisypulsepilates@gmail.com": "Aisy",
 }
 
+// Items only visible to specific emails (in addition to the always-visible navItems).
+const AI_SERVICES_OWNER_EMAIL = "michelleleng.ng@gmail.com"
+
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
   const [userName, setUserName] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const email = data.user?.email ?? ""
+      setUserEmail(email)
       setUserName(EMAIL_TO_NAME[email] ?? email.split("@")[0] ?? "User")
     })
   }, [supabase])
+
+  const visibleNavItems = navItems.concat(
+    userEmail === AI_SERVICES_OWNER_EMAIL
+      ? [{ title: "AI Services", href: "/ai-services", icon: Sparkles }]
+      : []
+  )
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -126,7 +138,7 @@ export function AppSidebar() {
         <SidebarGroup className="p-0">
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const isActive =
                   item.href === "/"
                     ? pathname === "/"
