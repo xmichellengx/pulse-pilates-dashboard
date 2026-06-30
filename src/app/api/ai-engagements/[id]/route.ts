@@ -7,6 +7,7 @@ const supabase = createServiceClient(
 )
 
 const ALLOWED_FIELDS = new Set([
+  "engagement_number",
   "client_name",
   "project_name",
   "client_email",

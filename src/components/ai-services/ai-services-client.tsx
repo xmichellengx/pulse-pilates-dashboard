@@ -23,6 +23,7 @@ export type UpfrontItem = { description: string }
 
 export type Engagement = {
   id: string
+  engagement_number: string | null
   client_name: string
   project_name: string
   client_email: string | null
@@ -254,7 +255,14 @@ export function AiServicesClient({ engagements: initialEng, invoices: initialInv
                       onClick={() => setEditTarget(e)}
                     >
                       <td className="px-4 py-3.5">
-                        <div className="font-semibold text-slate-800 leading-tight">{e.client_name}</div>
+                        <div className="flex items-center gap-1.5 leading-tight">
+                          <span className="font-semibold text-slate-800">{e.client_name}</span>
+                          {e.engagement_number && (
+                            <span className="inline-flex items-center rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-indigo-700 border border-indigo-100">
+                              {e.engagement_number}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-500 mt-0.5">{e.project_name}</div>
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-600">
@@ -417,6 +425,7 @@ function EngagementModal(props:
   | { mode: "edit"; engagement: Engagement; onClose: () => void; onUpdated: (e: Engagement) => void; onDeleted: (id: string) => void }
 ) {
   const initial = props.mode === "edit" ? props.engagement : null
+  const [engagementNumber, setEngagementNumber] = useState(initial?.engagement_number ?? "")
   const [clientName, setClientName] = useState(initial?.client_name ?? "")
   const [projectName, setProjectName] = useState(initial?.project_name ?? "")
   const [clientEmail, setClientEmail] = useState(initial?.client_email ?? "")
@@ -453,6 +462,7 @@ function EngagementModal(props:
     setSaving(true)
     try {
       const body = {
+        engagement_number: engagementNumber.trim() || undefined,
         client_name: clientName.trim(),
         project_name: projectName.trim(),
         client_email: clientEmail.trim() || null,
@@ -524,6 +534,16 @@ function EngagementModal(props:
         </div>
 
         <div className="px-6 py-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">Order no. (engagement #)</label>
+            <input
+              value={engagementNumber}
+              onChange={(e) => setEngagementNumber(e.target.value)}
+              placeholder={props.mode === "create" ? "Leave blank to auto-generate (e.g. PPAI002)" : "PPAI001"}
+              className={inputCls}
+            />
+            <p className="text-xs text-slate-400 mt-1">Becomes the base of invoice numbers for this client (e.g. PPAI001 for upfront, PPAI001-2026-07 for July maintenance).</p>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1.5">Client name *</label>
@@ -707,6 +727,15 @@ function GenerateInvoiceModal({
   const [creating, setCreating] = useState(false)
   const [downloading, setDownloading] = useState<{ kind: "invoice" | "receipt"; id: string } | null>(null)
 
+  // Suggested invoice number — derives from the engagement's order number
+  // (e.g. PPAI001 → upfront "PPAI001", maintenance Jul 2026 → "PPAI001-2026-07").
+  // Empty if no engagement_number on the engagement (falls back to server-side PPAI-YYYY-XXXX).
+  const suggestedInvoiceNumber = useMemo(() => {
+    if (!engagement.engagement_number) return ""
+    if (invoiceType === "upfront") return engagement.engagement_number
+    return `${engagement.engagement_number}-${periodYear}-${String(periodMonth).padStart(2, "0")}`
+  }, [engagement.engagement_number, invoiceType, periodYear, periodMonth])
+
   const upfrontInvoiced = existingInvoices.some((i) => i.invoice_type === "upfront" && i.status !== "void")
   const sortedInvoices = useMemo(() => [...existingInvoices].sort((a, b) => b.invoice_date.localeCompare(a.invoice_date)), [existingInvoices])
 
@@ -740,7 +769,7 @@ function GenerateInvoiceModal({
         due_date: dueDate.toISOString().slice(0, 10),
         notes: notes.trim() || null,
         status: "draft",
-        invoice_number: invoiceNumber.trim() || undefined,
+        invoice_number: (invoiceNumber.trim() || suggestedInvoiceNumber) || undefined,
       }
       const res = await fetch("/api/ai-invoices", {
         method: "POST",
@@ -861,7 +890,9 @@ function GenerateInvoiceModal({
         doc_type: kind,
         bill_number: inv.invoice_number,
         bill_date: formatShortDate(inv.payment_date ?? inv.invoice_date),
-        reference: engagement.project_name,
+        reference: engagement.engagement_number
+          ? `${engagement.engagement_number} · ${engagement.project_name}`
+          : engagement.project_name,
         customer_name: engagement.client_name,
         customer_email: engagement.client_email ?? undefined,
         customer_phone: engagement.client_phone ?? undefined,
@@ -910,6 +941,11 @@ function GenerateInvoiceModal({
             <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
               <Receipt className="h-4 w-4 text-indigo-500" />
               Invoices — {engagement.client_name}
+              {engagement.engagement_number && (
+                <span className="inline-flex items-center rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-indigo-700 border border-indigo-100">
+                  {engagement.engagement_number}
+                </span>
+              )}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">{engagement.project_name}</p>
           </div>
@@ -985,14 +1021,31 @@ function GenerateInvoiceModal({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Invoice number (leave blank to auto-generate)</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                  Invoice number
+                  {suggestedInvoiceNumber && (
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceNumber(suggestedInvoiceNumber)}
+                      className="ml-2 text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
+                    >
+                      Use suggested: {suggestedInvoiceNumber}
+                    </button>
+                  )}
+                </label>
                 <input
                   type="text"
                   value={invoiceNumber}
                   onChange={(e) => setInvoiceNumber(e.target.value)}
-                  placeholder={`PPAI-${today.getFullYear()}-XXXX`}
+                  placeholder={suggestedInvoiceNumber || `PPAI-${today.getFullYear()}-XXXX`}
                   className={inputCls}
                 />
+                <p className="text-xs text-slate-400 mt-1">
+                  {suggestedInvoiceNumber
+                    ? `Defaults to the engagement order # (with period suffix for monthly invoices). Leave blank to use the suggestion.`
+                    : `Leave blank to auto-generate PPAI-YYYY-XXXX. Tip: set an "Order no." on the engagement to use that as the invoice prefix instead.`
+                  }
+                </p>
               </div>
 
               <div className="grid grid-cols-3 gap-3">

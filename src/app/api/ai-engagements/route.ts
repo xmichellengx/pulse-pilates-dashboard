@@ -15,7 +15,24 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid body" }, { status: 400 })
   }
 
+  // Engagement number: caller can override; otherwise generate PPAI{NNN}.
+  let engagementNumber: string | null = typeof body.engagement_number === "string" && body.engagement_number.trim()
+    ? body.engagement_number.trim()
+    : null
+  if (!engagementNumber) {
+    const { data: seqRow, error: seqErr } = await supabase.rpc("nextval", { sequence_name: "ai_engagement_seq" } as never)
+    let seqNum: number
+    if (seqErr || typeof seqRow !== "number") {
+      const { count } = await supabase.from("ai_engagements").select("id", { count: "exact", head: true })
+      seqNum = (count ?? 0) + 1
+    } else {
+      seqNum = seqRow
+    }
+    engagementNumber = `PPAI${String(seqNum).padStart(3, "0")}`
+  }
+
   const row = {
+    engagement_number: engagementNumber,
     client_name: String(body.client_name ?? "").trim(),
     project_name: String(body.project_name ?? "").trim(),
     client_email: typeof body.client_email === "string" && body.client_email.trim() ? body.client_email.trim() : null,
