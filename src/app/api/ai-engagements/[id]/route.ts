@@ -22,6 +22,7 @@ const ALLOWED_FIELDS = new Set([
   "year_one_monthly",
   "year_two_plus_monthly",
   "scope_notes",
+  "scope_appendix_text",
   "internal_notes",
 ])
 

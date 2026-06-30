@@ -290,6 +290,46 @@ const s = StyleSheet.create({
     color: "#111",
     marginBottom: 2,
   },
+  // Appendix page (Scope of Work)
+  appendixTitle: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: "#111",
+    marginBottom: 4,
+  },
+  appendixSubtitle: {
+    fontSize: 9,
+    color: "#555",
+    marginBottom: 14,
+  },
+  appendixHeading: {
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: "#111",
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  appendixParagraph: {
+    fontSize: 9,
+    color: "#222",
+    marginBottom: 6,
+    lineHeight: 1.5,
+  },
+  appendixBulletRow: {
+    flexDirection: "row",
+    marginBottom: 4,
+  },
+  appendixBulletDot: {
+    fontSize: 9,
+    color: "#222",
+    width: 10,
+  },
+  appendixBulletText: {
+    fontSize: 9,
+    color: "#222",
+    flex: 1,
+    lineHeight: 1.5,
+  },
   contactLine: {
     fontSize: 9,
     color: "#333",
@@ -345,10 +385,89 @@ export interface InvoicePDFInput {
   // T&Cs. Used on AI-service upfront invoices to surface the recurring
   // maintenance fee plan to the customer.
   maintenance_schedule_text?: string
+  // Optional "Scope of Work — Appendix" content. If present, renders
+  // as a SECOND PDF page. Supports basic markdown: ### headings,
+  // - bullets, **bold** inline. Used on AI service upfront invoices.
+  appendix_text?: string
+  appendix_subtitle?: string
 }
 
 function fmt(n: number) {
   return n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// Render a string with **bold** segments as inline-bold spans. Returns an
+// array of <Text> children suitable for placing inside a parent <Text>.
+function renderInlineBold(text: string): React.ReactNode[] {
+  const parts = text.split(/\*\*(.+?)\*\*/g)
+  return parts.map((part, i) => {
+    if (i % 2 === 1) {
+      return (
+        <Text key={i} style={{ fontFamily: "Helvetica-Bold" }}>
+          {part}
+        </Text>
+      )
+    }
+    return <Text key={i}>{part}</Text>
+  })
+}
+
+// Very small markdown subset for the appendix page: ###/##/# headings,
+// '- ' bullets, **bold** inline. Blank lines = paragraph breaks.
+function renderAppendixMarkdown(md: string): React.ReactNode[] {
+  const lines = md.replace(/\r\n/g, "\n").split("\n")
+  const nodes: React.ReactNode[] = []
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    const trimmed = line.trimEnd()
+    if (!trimmed) {
+      i++
+      continue
+    }
+    const headingMatch = /^(#{1,3})\s+(.+)$/.exec(trimmed)
+    if (headingMatch) {
+      nodes.push(
+        <Text key={`h-${i}`} style={s.appendixHeading}>
+          {headingMatch[2]}
+        </Text>
+      )
+      i++
+      continue
+    }
+    if (/^[-•]\s+/.test(trimmed)) {
+      // Group consecutive bullets
+      while (i < lines.length) {
+        const cur = lines[i].trimEnd()
+        if (!/^[-•]\s+/.test(cur)) break
+        const content = cur.replace(/^[-•]\s+/, "")
+        nodes.push(
+          <View key={`b-${i}`} style={s.appendixBulletRow}>
+            <Text style={s.appendixBulletDot}>•</Text>
+            <Text style={s.appendixBulletText}>{renderInlineBold(content)}</Text>
+          </View>
+        )
+        i++
+      }
+      continue
+    }
+    // Paragraph — collect consecutive non-empty, non-heading, non-bullet lines
+    const buf: string[] = []
+    while (i < lines.length) {
+      const cur = lines[i].trimEnd()
+      if (!cur) break
+      if (/^(#{1,3})\s+/.test(cur)) break
+      if (/^[-•]\s+/.test(cur)) break
+      buf.push(cur)
+      i++
+    }
+    nodes.push(
+      <Text key={`p-${i}`} style={s.appendixParagraph}>
+        {renderInlineBold(buf.join(" "))}
+      </Text>
+    )
+  }
+  return nodes
 }
 
 // ── Document ───────────────────────────────────────────────────────────────────
@@ -384,6 +503,8 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
     is_maintenance,
     is_ai_service,
     maintenance_schedule_text,
+    appendix_text,
+    appendix_subtitle,
     logoSrc,
   } = props
 
@@ -682,6 +803,20 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
         <Text style={s.contactLine}>{"Contact No : 018-929 4693"}</Text>
 
       </Page>
+
+      {/* ── Appendix page (Scope of Work) ── */}
+      {appendix_text && (
+        <Page size="A4" style={s.page}>
+          <Text style={s.appendixTitle}>
+            {`Scope of Work — Appendix to Invoice ${bill_number}`}
+          </Text>
+          {appendix_subtitle && (
+            <Text style={s.appendixSubtitle}>{appendix_subtitle}</Text>
+          )}
+          <View style={s.divider} />
+          {renderAppendixMarkdown(appendix_text)}
+        </Page>
+      )}
     </Document>
   )
 }
@@ -735,6 +870,8 @@ const InvoicePDFInputSchema = z.object({
   is_maintenance: z.boolean().optional().nullable(),
   is_ai_service: z.boolean().optional().nullable(),
   maintenance_schedule_text: z.string().max(2000).optional().nullable(),
+  appendix_text: z.string().max(10000).optional().nullable(),
+  appendix_subtitle: z.string().max(300).optional().nullable(),
 })
 
 // ── Route handler ──────────────────────────────────────────────────────────────

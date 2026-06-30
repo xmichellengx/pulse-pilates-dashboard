@@ -47,6 +47,7 @@ export async function POST(req: Request) {
     year_one_monthly: Number(body.year_one_monthly) || 0,
     year_two_plus_monthly: Number(body.year_two_plus_monthly) || 0,
     scope_notes: typeof body.scope_notes === "string" && body.scope_notes.trim() ? body.scope_notes.trim() : null,
+    scope_appendix_text: typeof body.scope_appendix_text === "string" && body.scope_appendix_text.trim() ? body.scope_appendix_text.trim() : null,
     internal_notes: typeof body.internal_notes === "string" && body.internal_notes.trim() ? body.internal_notes.trim() : null,
   }
   if (!row.client_name || !row.project_name) {

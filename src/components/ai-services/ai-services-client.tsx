@@ -38,6 +38,7 @@ export type Engagement = {
   year_one_monthly: number
   year_two_plus_monthly: number
   scope_notes: string | null
+  scope_appendix_text: string | null
   internal_notes: string | null
   created_at: string
   updated_at: string
@@ -440,6 +441,7 @@ function EngagementModal(props:
   const [yearOneMonthly, setYearOneMonthly] = useState(String(initial?.year_one_monthly ?? ""))
   const [yearTwoPlusMonthly, setYearTwoPlusMonthly] = useState(String(initial?.year_two_plus_monthly ?? ""))
   const [scopeNotes, setScopeNotes] = useState(initial?.scope_notes ?? "")
+  const [scopeAppendix, setScopeAppendix] = useState(initial?.scope_appendix_text ?? "")
   const [internalNotes, setInternalNotes] = useState(initial?.internal_notes ?? "")
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -461,7 +463,7 @@ function EngagementModal(props:
     }
     setSaving(true)
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         engagement_number: engagementNumber.trim() || undefined,
         client_name: clientName.trim(),
         project_name: projectName.trim(),
@@ -477,6 +479,7 @@ function EngagementModal(props:
         year_one_monthly: Number(yearOneMonthly) || 0,
         year_two_plus_monthly: Number(yearTwoPlusMonthly) || 0,
         scope_notes: scopeNotes.trim() || null,
+        scope_appendix_text: scopeAppendix.trim() || null,
         internal_notes: internalNotes.trim() || null,
       }
       const url = props.mode === "edit" ? `/api/ai-engagements/${props.engagement.id}` : "/api/ai-engagements"
@@ -651,6 +654,19 @@ function EngagementModal(props:
                   placeholder="e.g. Covers bug fixes, system errors, debugging. Excludes new feature development."
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Scope of Work appendix (attached to upfront invoice PDF)</label>
+                <textarea
+                  value={scopeAppendix}
+                  onChange={(e) => setScopeAppendix(e.target.value)}
+                  rows={8}
+                  placeholder={`### Included — delivered\n- **Customer booking:** landing page + instructor bio…\n- **Owner admin:** week/day schedule + manual booking…\n\n### Not included\nnew features/design changes…\n\n### Maintenance\n2 months free · Yr 1 RM180/mo · Yr 2+ RM280/mo`}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-y"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Becomes a "Scope of Work — Appendix" page on the upfront invoice. Supports basic markdown: <code className="text-[10px] bg-slate-100 px-1 rounded">### Heading</code> for sections, <code className="text-[10px] bg-slate-100 px-1 rounded">- item</code> for bullets, <code className="text-[10px] bg-slate-100 px-1 rounded">**bold**</code> for emphasis.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Internal notes (private)</label>
@@ -886,6 +902,16 @@ function GenerateInvoiceModal({
           })()
         : undefined
 
+      // Scope of Work appendix — attach as a second page on upfront invoices
+      // when the engagement has appendix text set.
+      const appendixSubtitleParts: string[] = []
+      if (engagement.client_address) appendixSubtitleParts.push(`Client: ${engagement.client_name}, ${engagement.client_address}`)
+      else appendixSubtitleParts.push(`Client: ${engagement.client_name}`)
+      appendixSubtitleParts.push(`Project: ${engagement.project_name}`)
+      if (engagement.maintenance_start_date) appendixSubtitleParts.push(`Est. delivery: ${formatDate(engagement.maintenance_start_date)}`)
+      const appendixText = inv.invoice_type === "upfront" ? (engagement.scope_appendix_text ?? undefined) : undefined
+      const appendixSubtitle = appendixText ? appendixSubtitleParts.join(" · ") : undefined
+
       const payload = {
         doc_type: kind,
         bill_number: inv.invoice_number,
@@ -905,6 +931,8 @@ function GenerateInvoiceModal({
         issued_by: "Michelle",
         is_ai_service: true,
         maintenance_schedule_text: maintenanceScheduleText,
+        appendix_text: appendixText,
+        appendix_subtitle: appendixSubtitle,
       }
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",
