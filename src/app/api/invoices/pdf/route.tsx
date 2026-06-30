@@ -555,6 +555,11 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
               </Text>
             </View>
           </>
+        ) : is_ai_service ? (
+          // AI service invoices: skip Payment Details entirely. "Buying Method:
+          // Direct Purchase" is meaningless for a service engagement, and the
+          // payment date is already on the bill date at the top of a receipt.
+          null
         ) : (
           <>
             <Text style={s.sectionTitle}>Payment Details</Text>
