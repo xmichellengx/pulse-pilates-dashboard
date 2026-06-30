@@ -582,9 +582,9 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
           </View>
         )}
 
-        {/* ── Important Notes ── */}
+        {/* ── Terms & Conditions ── */}
         <View style={s.importantBox}>
-          <Text style={s.importantTitle}>Important - Please Read</Text>
+          <Text style={s.importantTitle}>Terms &amp; Conditions</Text>
 
           {is_ai_service ? (
             <>
