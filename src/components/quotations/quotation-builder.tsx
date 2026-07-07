@@ -413,6 +413,31 @@ function LineItemRow({
         </div>
       )}
 
+      {/* Monthly rental price — editable when Rental mode is selected.
+          Many products don't have rental_myr set in the DB, so the rep
+          needs to be able to type the amount live. */}
+      {item.product_id && item.purchase_mode === "rental" && (
+        <div className="space-y-1">
+          <Label className="text-xs text-slate-600">Monthly rental (RM per unit)</Label>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">{currency}</span>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={item.unit_price || ""}
+              onChange={(e) => onChange(index, { unit_price: Number(e.target.value) || 0 })}
+              placeholder={selectedProduct?.rental_myr ? String(selectedProduct.rental_myr) : "Enter monthly rate"}
+              className="h-8 text-sm w-40"
+            />
+            <span className="text-xs text-slate-500">/ month × {item.qty} unit{item.qty !== 1 ? "s" : ""}</span>
+          </div>
+          {!selectedProduct?.rental_myr && (
+            <p className="text-xs text-amber-600">No default rental price on this product — enter manually.</p>
+          )}
+        </div>
+      )}
+
       {/* Customisation */}
       {item.product_id && item.purchase_mode !== "rental" && (
         <div className="space-y-2">
