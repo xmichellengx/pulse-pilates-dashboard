@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     upfront_amount: Number(body.upfront_amount) || 0,
     upfront_paid_date: typeof body.upfront_paid_date === "string" && body.upfront_paid_date ? body.upfront_paid_date : null,
     maintenance_start_date: typeof body.maintenance_start_date === "string" && body.maintenance_start_date ? body.maintenance_start_date : null,
+    delivered_at: typeof body.delivered_at === "string" && body.delivered_at ? body.delivered_at : null,
     trial_months_free: Number(body.trial_months_free) || 0,
     year_one_monthly: Number(body.year_one_monthly) || 0,
     year_two_plus_monthly: Number(body.year_two_plus_monthly) || 0,

@@ -29,7 +29,8 @@ export type Engagement = {
   client_email: string | null
   client_phone: string | null
   client_address: string | null
-  status: "active" | "paused" | "completed" | "cancelled"
+  status: "active" | "delivered" | "paused" | "completed" | "cancelled"
+  delivered_at: string | null
   upfront_items: UpfrontItem[]
   upfront_amount: number
   upfront_paid_date: string | null
@@ -62,7 +63,8 @@ export type Invoice = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  active: "bg-blue-50 text-blue-700 border-blue-100",
+  delivered: "bg-emerald-50 text-emerald-700 border-emerald-100",
   paused: "bg-amber-50 text-amber-700 border-amber-100",
   completed: "bg-slate-100 text-slate-600 border-slate-200",
   cancelled: "bg-red-50 text-red-700 border-red-100",
@@ -91,10 +93,14 @@ function computeMonthlyRate(eng: Engagement, periodYear: number, periodMonth: nu
   amount: number
   reason: "trial" | "year_one" | "year_two_plus" | "before_start"
 } {
-  if (!eng.maintenance_start_date) {
+  // Prefer actual delivery when set; fall back to estimated date. This means
+  // FOC + billing months are counted from the true handover once the project
+  // ships, not from the original estimate that may have slipped.
+  const anchor = eng.delivered_at ?? eng.maintenance_start_date
+  if (!anchor) {
     return { amount: eng.year_one_monthly, reason: "year_one" }
   }
-  const start = new Date(eng.maintenance_start_date)
+  const start = new Date(anchor)
   const period = new Date(periodYear, periodMonth - 1, 1)
   if (period < start) return { amount: 0, reason: "before_start" }
   const monthsSinceStart =
@@ -151,6 +157,37 @@ export function AiServicesClient({ engagements: initialEng, invoices: initialInv
   }
   function handleInvoiceDeleted(id: string) {
     setInvoices((prev) => prev.filter((x) => x.id !== id))
+  }
+
+  async function handleMarkDelivered(e: Engagement) {
+    const defaultDate = new Date().toISOString().slice(0, 10)
+    const entered = prompt(
+      `Actual delivery / handover date for ${e.client_name}?\n\nFormat: YYYY-MM-DD\nLeave blank to use today (${defaultDate}).`,
+      defaultDate
+    )
+    if (entered === null) return
+    const deliveredAt = entered.trim() || defaultDate
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(deliveredAt)) {
+      toast.error("Invalid date. Use YYYY-MM-DD.")
+      return
+    }
+    try {
+      const res = await fetch(`/api/ai-engagements/${e.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ delivered_at: deliveredAt, status: "delivered" }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "Update failed" }))
+        throw new Error(error || "Update failed")
+      }
+      const updated = (await res.json()) as Engagement
+      handleEngagementUpdated(updated)
+      toast.success(`Marked delivered on ${deliveredAt}`)
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : "Update failed")
+    }
   }
 
   return (
@@ -267,9 +304,16 @@ export function AiServicesClient({ engagements: initialEng, invoices: initialInv
                         <div className="text-xs text-slate-500 mt-0.5">{e.project_name}</div>
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-600">
-                        {e.maintenance_start_date ? (
+                        {e.maintenance_start_date || e.delivered_at ? (
                           <div className="space-y-0.5">
-                            <div>Delivery: {formatDate(e.maintenance_start_date)}</div>
+                            {e.delivered_at ? (
+                              <div className="flex items-center gap-1.5">
+                                <Check className="h-3 w-3 text-emerald-600" />
+                                <span className="text-emerald-700 font-medium">Delivered {formatDate(e.delivered_at)}</span>
+                              </div>
+                            ) : (
+                              <div>Est. delivery: {formatDate(e.maintenance_start_date!)}</div>
+                            )}
                             <div className="text-slate-500">
                               {e.trial_months_free}mo FOC · then RM {e.year_one_monthly}/mo (yr 1) · RM {e.year_two_plus_monthly}/mo (yr 2+)
                             </div>
@@ -291,6 +335,16 @@ export function AiServicesClient({ engagements: initialEng, invoices: initialInv
                       </td>
                       <td className="px-4 py-3.5" onClick={(ev) => ev.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
+                          {!e.delivered_at && (e.status === "active" || e.status === "paused") && (
+                            <button
+                              onClick={() => handleMarkDelivered(e)}
+                              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors border border-emerald-100"
+                              title="Mark project as delivered / handed over"
+                            >
+                              <Check className="h-3 w-3" />
+                              Deliver
+                            </button>
+                          )}
                           <button
                             onClick={() => setInvoiceTarget({ engagement: e })}
                             className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-medium hover:bg-indigo-100 transition-colors border border-indigo-100"
@@ -437,6 +491,7 @@ function EngagementModal(props:
   const [upfrontAmount, setUpfrontAmount] = useState(String(initial?.upfront_amount ?? ""))
   const [upfrontPaidDate, setUpfrontPaidDate] = useState(initial?.upfront_paid_date ?? "")
   const [maintenanceStartDate, setMaintenanceStartDate] = useState(initial?.maintenance_start_date ?? "")
+  const [deliveredAt, setDeliveredAt] = useState(initial?.delivered_at ?? "")
   const [trialMonthsFree, setTrialMonthsFree] = useState(String(initial?.trial_months_free ?? 2))
   const [yearOneMonthly, setYearOneMonthly] = useState(String(initial?.year_one_monthly ?? ""))
   const [yearTwoPlusMonthly, setYearTwoPlusMonthly] = useState(String(initial?.year_two_plus_monthly ?? ""))
@@ -475,6 +530,7 @@ function EngagementModal(props:
         upfront_amount: Number(upfrontAmount) || 0,
         upfront_paid_date: upfrontPaidDate || null,
         maintenance_start_date: maintenanceStartDate || null,
+        delivered_at: deliveredAt || null,
         trial_months_free: Number(trialMonthsFree) || 0,
         year_one_monthly: Number(yearOneMonthly) || 0,
         year_two_plus_monthly: Number(yearTwoPlusMonthly) || 0,
@@ -623,12 +679,17 @@ function EngagementModal(props:
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Estimated delivery date</label>
                 <input type="date" value={maintenanceStartDate} onChange={(e) => setMaintenanceStartDate(e.target.value)} className={inputCls} />
-                <p className="text-xs text-slate-400 mt-1">FOC trial + monthly billing schedule are computed from this date.</p>
+                <p className="text-xs text-slate-400 mt-1">Planned handover date shown on the invoice.</p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Trial months (FOC)</label>
-                <input type="number" min={0} value={trialMonthsFree} onChange={(e) => setTrialMonthsFree(e.target.value)} className={inputCls} />
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Actual delivery date</label>
+                <input type="date" value={deliveredAt} onChange={(e) => setDeliveredAt(e.target.value)} className={inputCls} />
+                <p className="text-xs text-slate-400 mt-1">Once set, FOC trial + monthly billing anchor from here (not the estimate).</p>
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">Trial months (FOC)</label>
+              <input type="number" min={0} value={trialMonthsFree} onChange={(e) => setTrialMonthsFree(e.target.value)} className={inputCls} />
             </div>
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
@@ -680,7 +741,8 @@ function EngagementModal(props:
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Status</label>
                 <select value={status} onChange={(e) => setStatus(e.target.value as Engagement["status"])} className={inputCls}>
-                  <option value="active">Active</option>
+                  <option value="active">Active (in progress)</option>
+                  <option value="delivered">Delivered (maintenance running)</option>
                   <option value="paused">Paused</option>
                   <option value="completed">Completed</option>
                   <option value="cancelled">Cancelled</option>
