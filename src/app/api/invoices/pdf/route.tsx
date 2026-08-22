@@ -22,29 +22,41 @@ function imgB64(filePath: string): string {
 const PUBLIC = path.join(process.cwd(), "public")
 const LOGO_SRC = imgB64(path.join(PUBLIC, "pulse-logo.png"))
 
-// ── B2C warranty ───────────────────────────────────────────────────────────────
-// The full Limited Warranty T&Cs live as a static PDF under /public/warranty and
-// are surfaced on B2C invoices/receipts as a short snapshot + a QR code that
-// links to the full document.
+// ── Warranty terms ────────────────────────────────────────────────────────────
+// The full T&Cs live as static PDFs under /public/warranty and are surfaced on
+// invoices and receipts as a QR code below the signature block.
 //
-// The QR is a pre-baked PNG (see scripts/generate-warranty-qr.js) rather than
-// generated per request — the URL is a constant, so there's no reason to pay
-// for it on every render. If WARRANTY_URL changes, re-run that script.
+// The QRs are pre-baked PNGs (see scripts/generate-warranty-qr.js) rather than
+// generated per request — the URLs are constants, so there is no reason to pay
+// for them on every render.
 //
-// NOTE: this is deliberately a hardcoded absolute URL, NOT NEXT_PUBLIC_APP_URL.
+// NOTE: these are deliberately hardcoded absolute URLs, NOT NEXT_PUBLIC_APP_URL.
 // That env var is "http://localhost:3000" in local dev, and a localhost QR code
 // printed on a customer's invoice would be worse than no QR at all.
 //
 // VERSIONING: the version lives in the filename, not on the printed invoice.
 // An invoice's QR is a permanent pointer to the exact terms that governed that
-// sale, which is what matters if a claim arrives a year later. So when the
-// terms are revised, publish the new version alongside the old one and point
-// this constant at it — do NOT delete or overwrite a warranty PDF that any
-// issued invoice still links to.
-const WARRANTY_URL =
-  "https://pulse-pilates.vercel.app/warranty/b2c-limited-warranty-v2.0.pdf"
-const WARRANTY_QR_SRC = imgB64(path.join(PUBLIC, "warranty", "b2c-warranty-qr.png"))
+// sale, which is what matters if a claim arrives a year later. So when terms
+// are revised, publish the new version alongside the old one and repoint this
+// table — do NOT delete or overwrite a PDF that any issued invoice links to.
+type WarrantyTerms = "b2c" | "b2b"
 
+const WARRANTY: Record<WarrantyTerms, { url: string; qr: string; clause: string }> = {
+  b2c: {
+    url: "https://pulse-pilates.vercel.app/warranty/b2c-limited-warranty-v3.0.pdf",
+    qr: imgB64(path.join(PUBLIC, "warranty", "b2c-warranty-qr.png")),
+    clause:
+      "6 months on structural components and 3 months on springs, from the date of delivery, against defects in materials or workmanship. Wear parts (ropes, straps, handles, pulleys, wheels, upholstery), normal wear and tear, and damage caused by external factors are not covered.",
+  },
+  b2b: {
+    url: "https://pulse-pilates.vercel.app/warranty/b2b-limited-warranty-v1.0.pdf",
+    qr: imgB64(path.join(PUBLIC, "warranty", "b2b-warranty-qr.png")),
+    // Commercial buyers get the accelerated-wear point up front — it is the
+    // single most common source of studio warranty disputes.
+    clause:
+      "6 months on structural components and 3 months on springs, from the date of delivery, against defects in materials or workmanship. Wear parts, and accelerated wear arising from the volume, frequency or intensity of commercial use, are not covered. The Customer is responsible for routine inspection and preventive maintenance.",
+  },
+}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -458,15 +470,16 @@ export interface InvoicePDFInput {
   // When true, swaps the T&Cs for AI-services engagement terms
   // (scope, maintenance scope, out-of-scope work, payment terms).
   is_ai_service?: boolean
-  // When true, renders the B2C Limited Warranty snapshot + QR code linking to
-  // the full hosted T&Cs. Set ONLY for consumer equipment sales delivered in
-  // Malaysia — see isB2CConsumerSale() in /api/invoices/from-order.
+  // Which warranty terms govern this sale, if any. Renders the matching QR
+  // below the signature and swaps T&C clause 2 for the matching summary.
+  // Set by warrantyTermsFor() in /api/invoices/from-order.
   //
-  // Defaults to OFF. Attaching consumer warranty terms to a studio's invoice is
-  // worse than attaching nothing: clause 5 of that document excludes "commercial,
-  // studio, institutional or professional use", so the studio would be handed a
-  // warranty that voids itself on the use they bought the equipment for.
-  is_b2c_warranty?: boolean
+  // Defaults to undefined (no warranty block). Attaching the WRONG terms is
+  // worse than attaching none: the B2C document excludes "commercial, studio,
+  // institutional or professional use", so a studio handed consumer terms gets
+  // a warranty that voids itself on the very use they bought the equipment for.
+  // A single field rather than two booleans makes both-at-once unrepresentable.
+  warranty_terms?: WarrantyTerms
   // Optional "Maintenance Schedule" text block, rendered above the
   // T&Cs. Used on AI-service upfront invoices to surface the recurring
   // maintenance fee plan to the customer.
@@ -588,7 +601,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
     issued_by,
     is_maintenance,
     is_ai_service,
-    is_b2c_warranty,
+    warranty_terms,
     maintenance_schedule_text,
     appendix_text,
     appendix_subtitle,
@@ -598,9 +611,18 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
   const title = doc_type === "receipt" ? "RECEIPT" : "INVOICE"
   const isRental = doc_type === "rental"
 
+  // A warranty only belongs on an equipment sale. Rentals keep their own terms
+  // (the equipment stays Pulse's property), and maintenance / AI-service
+  // documents are governed by entirely different agreements. Guarding here as
+  // well as at the caller keeps the invariant local to the renderer.
+  const terms =
+    warranty_terms && !isRental && !is_maintenance && !is_ai_service
+      ? WARRANTY[warranty_terms]
+      : null
+
   return (
     <Document>
-      <Page size="A4" style={is_b2c_warranty ? s.pageCompact : s.page}>
+      <Page size="A4" style={terms ? s.pageCompact : s.page}>
 
         {/* ── Header: logo left, company right ── */}
         <View style={s.headerRow}>
@@ -670,7 +692,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
         </View>
 
         {items.map((item, i) => (
-          <View key={i} style={is_b2c_warranty ? [s.tableRow, s.tableRowCompact] : s.tableRow}>
+          <View key={i} style={terms ? [s.tableRow, s.tableRowCompact] : s.tableRow}>
             <Text style={{ ...s.tdText, ...s.colItem }}>{i + 1}.</Text>
             <View style={s.colDesc}>
               <Text style={s.tdText}>{item.description}</Text>
@@ -790,74 +812,74 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
         {maintenance_schedule_text && (
           <View style={s.importantBox}>
             <Text style={s.importantTitle}>Maintenance Schedule</Text>
-            <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>{maintenance_schedule_text}</Text>
+            <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>{maintenance_schedule_text}</Text>
           </View>
         )}
 
         {/* ── Terms & Conditions ── */}
-        <View style={is_b2c_warranty ? [s.importantBox, s.importantBoxCompact] : s.importantBox}>
+        <View style={terms ? [s.importantBox, s.importantBoxCompact] : s.importantBox}>
           <Text style={s.importantTitle}>Terms &amp; Conditions</Text>
 
           {is_ai_service ? (
             <>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"1. Scope of Services : "}</Text>
                 {"Services rendered are as per the agreed scope. Any work outside this scope (new features, additional integrations, scope expansions) will be quoted separately before work proceeds."}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"2. Maintenance Coverage : "}</Text>
                 {"Maintenance covers system errors, bug fixes, debugging, and routine system upkeep arising from defects in the originally delivered scope. It does not cover new feature development, design changes, third-party service outages, or work caused by client-side changes."}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"3. Payment Terms : "}</Text>
                 {"Payment is due within 14 days of the invoice date. Late payment may result in suspension of services until the account is settled."}
               </Text>
             </>
           ) : is_maintenance ? (
             <>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"1. Service Inspection : "}</Text>
                 {"Customer is required to inspect and test the equipment before our service team departs. Any concerns must be raised on the day of service."}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"2. Service Warranty : "}</Text>
                 {"Replaced parts and labour are warranted for 30 days from the service date against defects in materials or workmanship. Damage from external factors or unrelated issues is not covered."}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"3. Additional Work : "}</Text>
                 {"Any issues identified beyond the originally reported problem will be quoted separately before work proceeds."}
               </Text>
             </>
           ) : (
           <>
-          <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+          <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
             <Text style={s.importantLabel}>{"1. Condominium Delivery : "}</Text>
             {"Please ensure all necessary permits for condo access are secured prior to delivery, delivery fee will apply even if the delivery is unsuccessful due to lack of permission to enter."}
           </Text>
 
           {isRental ? (
             <>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"2. Minimum rental duration: "}</Text>
                 {"3 months"}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"3. Document Verification: "}</Text>
                 {"Photo of IC/PASSPORT/LICENSE upon delivery for verification"}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"4. Payex setup: "}</Text>
                 {"Set up of auto-debit account for monthly recurring rental"}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"5. Termination: "}</Text>
                 {"A minimum of two weeks notice before your next charging cycle needs to be given if you wish to terminate"}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"6. Damage: "}</Text>
                 {"Any cost or replacement, fixing, etc due to external damages on equipment during rental duration should bear by renter, according to our schedule of equipment parts"}
               </Text>
-              <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                 <Text style={s.importantLabel}>{"7. Rental Unit: "}</Text>
                 {"For rental based on stock availability you might receive a used unit in good condition. In the event of conversion to purchase, we will exchange with a new unit, delivery charges is applicable."}
               </Text>
@@ -867,19 +889,19 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
               {/* When the B2C warranty block is shown above, this clause would
                   just restate it (and less precisely). Collapse it to a pointer
                   so the full document governs and the page stays at one sheet. */}
-              {is_b2c_warranty ? (
-                <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+              {terms ? (
+                <Text style={[s.importantItem, s.importantItemCompact]}>
                   <Text style={s.importantLabel}>{"2. Warranty : "}</Text>
-                  {"6 months on structural components and 3 months on springs, from the date of delivery, against defects in materials or workmanship. Wear parts (ropes, straps, handles, pulleys, wheels, upholstery), normal wear and tear, and damage caused by external factors are not covered."}
+                  {terms.clause}
                 </Text>
               ) : (
-                <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+                <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                   <Text style={s.importantLabel}>{"2. Warranty Period : "}</Text>
                   {"All our equipments comes with 3 months warranty on spring, 6 months warranty on equipment for manufacturing defect, any damage caused by external factors are not eligible for warranty."}
                 </Text>
               )}
               {doc_type === "invoice" && (
-                <Text style={is_b2c_warranty ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
+                <Text style={terms ? [s.importantItem, s.importantItemCompact] : s.importantItem}>
                   <Text style={s.importantLabel}>{"3. Delivery Timeline : "}</Text>
                   {"The delivery timeline provided is an estimate and may be subject to change due to unforeseen circumstances such as logistics delays, customs clearance or other factors beyond our control."}
                 </Text>
@@ -891,23 +913,19 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
         </View>
 
         {/* ── Bank + Footer ── */}
-        <Text style={is_b2c_warranty ? [s.bankLine, s.bankLineCompact] : s.bankLine}>
+        <Text style={terms ? [s.bankLine, s.bankLineCompact] : s.bankLine}>
           {"Pulse Pilates Sdn Bhd - Maybank Berhad - 5140 1249 2051"}
         </Text>
-        <Text style={is_b2c_warranty ? [s.forPulse, s.forPulseCompact] : s.forPulse}>{"For Pulse Pilates :"}</Text>
+        <Text style={terms ? [s.forPulse, s.forPulseCompact] : s.forPulse}>{"For Pulse Pilates :"}</Text>
         <Text style={s.issuedByLabel}>{"Issued By"}</Text>
         <Text style={s.issuedByName}>{issued_by || "Aisy"}</Text>
         <Text style={s.contactLine}>{"Contact No : 018-929 4693"}</Text>
 
-        {/* ── B2C warranty: QR to the full T&Cs ── */}
-        {/* Consumer equipment sales only — never on rental, maintenance or
-            AI-service documents (those are governed by different terms). */}
-        {is_b2c_warranty && !isRental && !is_maintenance && !is_ai_service && (
+        {/* ── Warranty: QR to the full T&Cs ── */}
+        {terms && (
           <View style={s.warrantyFooter} wrap={false}>
-            <Link src={WARRANTY_URL}>
-              {WARRANTY_QR_SRC ? (
-                <Image src={WARRANTY_QR_SRC} style={s.warrantyFooterQr} />
-              ) : null}
+            <Link src={terms.url}>
+              {terms.qr ? <Image src={terms.qr} style={s.warrantyFooterQr} /> : null}
             </Link>
             <View style={s.warrantyFooterText}>
               <Text style={s.warrantyFooterTitle}>
@@ -987,7 +1005,7 @@ const InvoicePDFInputSchema = z.object({
   issued_by: z.string().max(100).optional().nullable(),
   is_maintenance: z.boolean().optional().nullable(),
   is_ai_service: z.boolean().optional().nullable(),
-  is_b2c_warranty: z.boolean().optional().nullable(),
+  warranty_terms: z.enum(["b2c", "b2b"]).optional().nullable(),
   maintenance_schedule_text: z.string().max(2000).optional().nullable(),
   appendix_text: z.string().max(10000).optional().nullable(),
   appendix_subtitle: z.string().max(300).optional().nullable(),

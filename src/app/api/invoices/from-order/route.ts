@@ -38,41 +38,42 @@ interface StoredAdjustment {
   amount?: number | null
 }
 
-// ── B2C consumer-sale test ─────────────────────────────────────────────────────
-// Decides whether the B2C Limited Warranty snapshot + QR belongs on this
-// document. Deliberately conservative: it must be positively established that
-// the buyer is a Malaysian consumer, and ANY signal of a business buyer
-// suppresses the block.
+// ── Which warranty terms govern this sale ─────────────────────────────────────
+// Returns the terms to print on the document, or undefined for none.
 //
-// Why err towards omitting it: clause 5 of the B2C warranty excludes
-// "commercial, studio, institutional or professional use". Printing consumer
-// terms on a studio's invoice hands them a warranty that voids itself on the
-// very use they bought the equipment for — worse for both sides than printing
-// nothing. A missing block, by contrast, costs nothing: the T&Cs already on the
-// invoice still state the 3-month spring / 6-month body cover.
+// Deliberately conservative in both directions: attaching the WRONG terms is
+// worse than attaching none. The B2C document excludes "commercial, studio,
+// institutional or professional use", so a studio handed consumer terms gets a
+// warranty that voids itself on the very use they bought the equipment for.
+// A missing block costs nothing — T&C clause 2 on the invoice still states the
+// cover, and the customer can ask.
 //
-// `is_b2b` is currently set on only 1 of 382 orders, so it can't be relied on
-// alone — pricing tier and studio_name carry most of the signal in practice.
-function isB2CConsumerSale(order: Record<string, unknown>): boolean {
-  // The warranty document is governed by Malaysian law and scoped in clause 1
-  // to Equipment delivered in Malaysia. SG orders get separate terms.
-  if (order.market !== "MY") return false
+// `is_b2b` is currently set on only 1 of 382 orders, so it cannot carry this on
+// its own; pricing tier and studio_name hold most of the signal in practice.
+function warrantyTermsFor(
+  order: Record<string, unknown>
+): "b2c" | "b2b" | undefined {
+  // Rentals are excluded from both: the equipment stays Pulse's property and
+  // the rental agreement governs instead.
+  if ((order.mode ?? "").toString().toLowerCase().includes("rental")) return undefined
 
-  if (order.is_b2b === true) return false
-
-  // p4b_* = "Pilates 4 Business" partner tiers.
   const tier = typeof order.pricing_tier === "string" ? order.pricing_tier : ""
-  if (tier.startsWith("p4b")) return false
+  const studio =
+    typeof order.studio_name === "string" ? order.studio_name.trim() : ""
 
-  // A studio_name on the order means the buyer is a studio, regardless of
-  // whether anyone remembered to tick is_b2b.
-  if (typeof order.studio_name === "string" && order.studio_name.trim()) return false
+  // Any signal of a business buyer -> commercial terms. p4b_* are the
+  // "Pilates 4 Business" partner tiers.
+  const isBusiness = order.is_b2b === true || tier.startsWith("p4b") || studio !== ""
 
-  // Rentals aren't consumer sales — the equipment stays Pulse's property and
-  // the rental T&Cs govern instead.
-  if ((order.mode ?? "").toString().toLowerCase().includes("rental")) return false
+  // Both documents are scoped by clause 1 to Equipment delivered in Malaysia or
+  // Singapore, and both state that equipment delivered elsewhere is supplied
+  // under separate terms. Anything outside those two markets therefore gets no
+  // block — printing terms that tell the customer they do not apply would be
+  // worse than printing none.
+  const inScope = order.market === "MY" || order.market === "SG"
+  if (!inScope) return undefined
 
-  return true
+  return isBusiness ? "b2b" : "b2c"
 }
 
 function toNumber(v: unknown): number {
@@ -278,7 +279,7 @@ export async function GET(req: Request) {
     // Rental fields — rental_start_date / monthly_billing_date / auto_debit_effective_date
     // are collected at invoice-generation time from the UI (not stored on the order)
     monthly_rental_amount: isRental ? (order.monthly_rental ?? undefined) : undefined,
-    is_b2c_warranty: isB2CConsumerSale(order),
+    warranty_terms: warrantyTermsFor(order),
     issued_by: "Aisy",
   }
 
