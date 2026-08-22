@@ -34,7 +34,13 @@ const LOGO_SRC = imgB64(path.join(PUBLIC, "pulse-logo.png"))
 // NOTE: this is deliberately a hardcoded absolute URL, NOT NEXT_PUBLIC_APP_URL.
 // That env var is "http://localhost:3000" in local dev, and a localhost QR code
 // printed on a customer's invoice would be worse than no QR at all.
-const WARRANTY_VERSION = "2.0"
+//
+// VERSIONING: the version lives in the filename, not on the printed invoice.
+// An invoice's QR is a permanent pointer to the exact terms that governed that
+// sale, which is what matters if a claim arrives a year later. So when the
+// terms are revised, publish the new version alongside the old one and point
+// this constant at it — do NOT delete or overwrite a warranty PDF that any
+// issued invoice still links to.
 const WARRANTY_URL =
   "https://pulse-pilates.vercel.app/warranty/b2c-limited-warranty-v2.0.pdf"
 const WARRANTY_QR_SRC = imgB64(path.join(PUBLIC, "warranty", "b2c-warranty-qr.png"))
@@ -908,7 +914,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
                 {"Limited Warranty — Terms & Conditions"}
               </Text>
               <Text style={s.warrantyFooterBody}>
-                {`Scan the code to download the full warranty terms that apply to this purchase. Version ${WARRANTY_VERSION}.`}
+                {"Scan the code to download the full warranty terms that apply to this purchase."}
               </Text>
             </View>
           </View>
