@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from "react"
-import { useForm, useFieldArray, Controller } from "react-hook-form"
+import { useForm, useFieldArray, Controller, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
@@ -114,6 +114,13 @@ function getUnitPrice(product: Product, market: "MY" | "SG", tier: string): numb
   return product.price_myr ?? 0
 }
 
+// Several products carry MYR pricing but no SGD pricing at all. getUnitPrice
+// falls back to 0 for those, which silently produces a quotation priced at zero
+// — the rep has no way to tell "free" from "we never set an SGD price".
+function hasPriceFor(product: Product, market: "MY" | "SG"): boolean {
+  return market === "SG" ? product.price_sgd != null : product.price_myr != null
+}
+
 function defaultDeliveryFee(market: "MY" | "SG"): number {
   return market === "SG" ? 80 : 150
 }
@@ -125,6 +132,40 @@ function isReformer(productName: string): boolean {
 
 function isCadillac(productName: string): boolean {
   return productName.toLowerCase().includes("cadillac")
+}
+
+// Which wizard step renders each validated field. Used to jump the user to a
+// failing field on submit — without this, a validation error on an earlier step
+// makes the Save button appear to do nothing at all, because the error message
+// is rendered on a step the user has already left.
+const FIELD_STEP: Record<string, number> = {
+  customer_name: 0,
+  phone: 0,
+  email: 0,
+  studio_name: 0,
+  market: 0,
+  pricing_tier: 0,
+  lead_source: 0,
+  delivery_location: 2,
+  delivery_fee: 2,
+  installation_fee: 2,
+  estimated_delivery: 2,
+  remarks: 2,
+}
+
+const FIELD_LABEL: Record<string, string> = {
+  customer_name: "Customer name",
+  phone: "Phone",
+  email: "Email",
+  studio_name: "Studio name",
+  market: "Market",
+  pricing_tier: "Pricing tier",
+  lead_source: "Lead source",
+  delivery_location: "Delivery location",
+  delivery_fee: "Delivery fee",
+  installation_fee: "Installation fee",
+  estimated_delivery: "Estimated delivery",
+  remarks: "Remarks",
 }
 
 function calcInstallFee(items: LineItem[]): number {
@@ -281,6 +322,10 @@ function LineItemRow({
   // Surcharge is per-unit (matches PDF rendering and the order-detail flow):
   // e.g. qty 2 with colour customisation @ RM 300 → RM 600 of customisation, not RM 300.
   const lineSubtotal = (item.unit_price + item.customisation_surcharge) * item.qty
+  const missingPrice =
+    !!selectedProduct &&
+    item.purchase_mode !== "rental" &&
+    !hasPriceFor(selectedProduct, market)
 
   function handleProductChange(productId: string) {
     const product = products.find((p) => p.id === productId)
@@ -321,6 +366,14 @@ function LineItemRow({
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+      {missingPrice && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <span className="font-semibold">No {currency} price set</span> for{" "}
+          {selectedProduct?.name}. It will quote at {currency}&nbsp;0 until the
+          price is added to the product list — enter the unit price manually, or
+          ask Michelle to set it.
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
           Item {index + 1}
@@ -868,6 +921,24 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
     } finally {
       setSaving(false)
     }
+  }
+
+  // react-hook-form calls this instead of handleSave when validation fails.
+  // Previously nothing was passed here, so a failed validation was completely
+  // silent: no toast, no console output, and the offending field's error was
+  // rendered back on step 0 or 2 where the user could not see it. The Save
+  // button simply appeared dead.
+  function handleInvalid(formErrors: FieldErrors<FormValues>) {
+    const fields = Object.keys(formErrors)
+    if (!fields.length) return
+    const first = fields
+      .slice()
+      .sort((a, b) => (FIELD_STEP[a] ?? 99) - (FIELD_STEP[b] ?? 99))[0]
+    const label = FIELD_LABEL[first] ?? first
+    const message = (formErrors as Record<string, { message?: string }>)[first]?.message
+    toast.error(message ? `${label}: ${message}` : `${label} is required`)
+    const target = FIELD_STEP[first]
+    if (target !== undefined && target !== step) setStep(target)
   }
 
   function canProceed() {
@@ -1504,7 +1575,7 @@ export function QuotationBuilder({ products, onClose, onSaved, initialData }: Qu
           <button
             type="button"
             disabled={saving}
-            onClick={handleSubmit(handleSave)}
+            onClick={handleSubmit(handleSave, handleInvalid)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-500 text-sm font-semibold text-white shadow-sm hover:bg-indigo-600 transition-all disabled:opacity-50"
           >
             {saving ? (
