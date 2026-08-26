@@ -34,22 +34,32 @@ const LOGO_SRC = imgB64(path.join(PUBLIC, "pulse-logo.png"))
 // That env var is "http://localhost:3000" in local dev, and a localhost QR code
 // printed on a customer's invoice would be worse than no QR at all.
 //
-// VERSIONING: the version lives in the filename, not on the printed invoice.
-// An invoice's QR is a permanent pointer to the exact terms that governed that
-// sale, which is what matters if a claim arrives a year later. So when terms
-// are revised, publish the new version alongside the old one and repoint this
-// table — do NOT delete or overwrite a PDF that any issued invoice links to.
+// These point at the customer-facing copies hosted in the Wix Media Manager on
+// pilatesreformer.my, so a scan opens the document Pulse actually publishes.
+// The QR targets the PDF directly rather than /warranty: that page renders in a
+// cross-origin Wix embed which cannot read the parent URL's #hash, so it always
+// opens on the consumer tab — a studio scanning a B2B invoice would have been
+// shown consumer terms. Linking the PDF removes the ambiguity entirely.
+//
+// VERSIONING: an invoice's QR is a permanent pointer to the exact terms that
+// governed that sale, which is what matters if a claim arrives a year later.
+// When terms are revised, publish the new document as a NEW file and repoint
+// this table. Never replace a file in place:
+//   - in Wix, re-uploading mints a new /ugd/ hash and silently breaks every
+//     QR already printed against the old one;
+//   - the copies under public/warranty are kept live for the same reason —
+//     invoices issued between 22 and 26 Aug 2026 carry QRs pointing there.
 type WarrantyTerms = "b2c" | "b2b"
 
 const WARRANTY: Record<WarrantyTerms, { url: string; qr: string; clause: string }> = {
   b2c: {
-    url: "https://pulse-pilates.vercel.app/warranty/b2c-limited-warranty-v3.0.pdf",
+    url: "https://d3104be0-b60e-4e0f-a8dc-8d5677bee712.usrfiles.com/ugd/d3104b_bc6b713f1e564c15b735a5199da7bf10.pdf",
     qr: imgB64(path.join(PUBLIC, "warranty", "b2c-warranty-qr.png")),
     clause:
       "6 months on structural components and 3 months on springs, from the date of delivery, against defects in materials or workmanship. Wear parts (ropes, straps, handles, pulleys, wheels, upholstery), normal wear and tear, and damage caused by external factors are not covered.",
   },
   b2b: {
-    url: "https://pulse-pilates.vercel.app/warranty/b2b-limited-warranty-v1.0.pdf",
+    url: "https://d3104be0-b60e-4e0f-a8dc-8d5677bee712.usrfiles.com/ugd/d3104b_130c838bd48845c9b86c7164dd875674.pdf",
     qr: imgB64(path.join(PUBLIC, "warranty", "b2b-warranty-qr.png")),
     // Commercial buyers get the accelerated-wear point up front — it is the
     // single most common source of studio warranty disputes.

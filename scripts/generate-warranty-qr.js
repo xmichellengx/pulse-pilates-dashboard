@@ -19,12 +19,12 @@ const path = require("path")
 const TARGETS = [
   {
     name: "b2c",
-    url: "https://pulse-pilates.vercel.app/warranty/b2c-limited-warranty-v3.0.pdf",
+    url: "https://d3104be0-b60e-4e0f-a8dc-8d5677bee712.usrfiles.com/ugd/d3104b_bc6b713f1e564c15b735a5199da7bf10.pdf",
     out: "b2c-warranty-qr.png",
   },
   {
     name: "b2b",
-    url: "https://pulse-pilates.vercel.app/warranty/b2b-limited-warranty-v1.0.pdf",
+    url: "https://d3104be0-b60e-4e0f-a8dc-8d5677bee712.usrfiles.com/ugd/d3104b_130c838bd48845c9b86c7164dd875674.pdf",
     out: "b2b-warranty-qr.png",
   },
 ]
