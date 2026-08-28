@@ -6,13 +6,27 @@ const supabase = createServiceClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const BUCKET = "rental-documents"
-
 // Doc type → orders column holding the storage path.
 const DOC_COLUMN: Record<string, "payex_proof_url" | "customer_id_url" | "leasing_contract_url"> = {
   payex_proof: "payex_proof_url",
   customer_id: "customer_id_url",
   leasing_contract: "leasing_contract_url",
+}
+
+// Doc type → bucket.
+//
+// Payment slips live apart from identity documents and contracts on purpose.
+// Utopia Group's finance team needs read access to proof-of-payment, and a
+// bucket is the smallest unit storage access can be granted over — so as long
+// as all three document types shared one bucket, granting payment slips would
+// also have handed over customers' IC and passport scans.
+//
+// The path inside the bucket is unchanged, so the *_url columns still hold a
+// bare key and needed no migration.
+const DOC_BUCKET: Record<string, string> = {
+  payex_proof: "payment-slips",
+  customer_id: "rental-documents",
+  leasing_contract: "rental-documents",
 }
 
 const MAX_BYTES = 10 * 1024 * 1024
@@ -50,9 +64,10 @@ export async function POST(
   const safeExt = ext.length > 0 && ext.length <= 8 ? ext : "bin"
   const path = `${orderId}/${type}-${Date.now()}.${safeExt}`
 
+  const bucket = DOC_BUCKET[type]
   const buffer = Buffer.from(await file.arrayBuffer())
   const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
+    .from(bucket)
     .upload(path, buffer, { contentType: file.type, upsert: false })
   if (uploadError) {
     return Response.json({ error: `upload failed: ${uploadError.message}` }, { status: 500 })
@@ -67,7 +82,7 @@ export async function POST(
   // @ts-expect-error dynamic column index
   const prevPath: string | null = existing?.[column] ?? null
   if (prevPath && prevPath !== path) {
-    await supabase.storage.from(BUCKET).remove([prevPath])
+    await supabase.storage.from(bucket).remove([prevPath])
   }
 
   const { error: updateError } = await supabase
@@ -75,7 +90,7 @@ export async function POST(
     .update({ [column]: path })
     .eq("id", orderId)
   if (updateError) {
-    await supabase.storage.from(BUCKET).remove([path])
+    await supabase.storage.from(bucket).remove([path])
     return Response.json({ error: updateError.message }, { status: 500 })
   }
 
@@ -104,7 +119,7 @@ export async function DELETE(
   const path: string | null = row?.[column] ?? null
 
   if (path) {
-    await supabase.storage.from(BUCKET).remove([path])
+    await supabase.storage.from(DOC_BUCKET[type]).remove([path])
   }
   const { error } = await supabase
     .from("orders")
@@ -139,7 +154,7 @@ export async function GET(
   if (!path) return Response.json({ error: "no file" }, { status: 404 })
 
   const { data: signed, error: signError } = await supabase.storage
-    .from(BUCKET)
+    .from(DOC_BUCKET[type])
     .createSignedUrl(path, 60)
   if (signError || !signed) {
     return Response.json({ error: "failed to sign url" }, { status: 500 })
