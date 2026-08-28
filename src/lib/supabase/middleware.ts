@@ -40,8 +40,13 @@ export async function updateSession(request: NextRequest) {
   // /api/* route is gated by requireUser() in src/lib/api/auth.ts AND by
   // this middleware as a second line of defense.
   const isSheetsSync = request.nextUrl.pathname.startsWith("/api/sync/sheets")
+  // /api/finance/* is Utopia Group's read-only finance sync. It carries its own
+  // bearer token (FINANCE_SYNC_SECRET) and is called machine-to-machine, so it
+  // has no user session cookie to present. The route verifies the token itself
+  // before touching anything.
+  const isFinanceSync = request.nextUrl.pathname.startsWith("/api/finance/")
 
-  if (!user && !isLoginPage && !isSheetsSync) {
+  if (!user && !isLoginPage && !isSheetsSync && !isFinanceSync) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     return NextResponse.redirect(url)
