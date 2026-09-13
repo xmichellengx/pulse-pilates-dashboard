@@ -101,6 +101,7 @@ function InvoiceDetailModal({
         total,
         deposit: 0,
         balance: total,
+        currency: invoice.currency === "SGD" ? "SGD" : "RM",
       }
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",
@@ -457,7 +458,7 @@ export function InvoicesClient({ initialInvoices }: InvoicesClientProps) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-800">
-                      {inv.amount ? `RM ${inv.amount.toLocaleString()}` : "—"}
+                      {inv.amount ? `${inv.currency ?? "RM"} ${inv.amount.toLocaleString()}` : "—"}
                     </td>
                     <td className="px-4 py-3 text-slate-500 hidden md:table-cell">
                       {formatDate(inv.created_at)}

@@ -276,6 +276,9 @@ export async function GET(req: Request) {
       : undefined,
     payment_date: order.payment_date ? formatBillDate(order.payment_date) : undefined,
     buying_method: order.mode ?? undefined,
+    // SG orders are priced off products.price_sgd, so order.amount is already
+    // an SGD figure — the document just has to say so. No FX conversion.
+    currency: order.market === "SG" ? "SGD" : "RM",
     // Rental fields — rental_start_date / monthly_billing_date / auto_debit_effective_date
     // are collected at invoice-generation time from the UI (not stored on the order)
     monthly_rental_amount: isRental ? (order.monthly_rental ?? undefined) : undefined,

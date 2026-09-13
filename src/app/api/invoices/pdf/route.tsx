@@ -461,6 +461,11 @@ export interface InvoicePDFInput {
   delivery_location?: string
   payment_date?: string
   buying_method?: string
+  // Currency this document is billed in. Amounts are already stored in the
+  // currency the sale was priced in (SG orders carry SGD figures — see
+  // products.price_sgd and the quotation builder), so this only LABELS the
+  // numbers; it never converts them. Defaults to RM.
+  currency?: "RM" | "SGD"
   // Warranty (used on receipts; auto-derived from delivery_date)
   warranty_body_start?: string
   warranty_body_end?: string
@@ -600,6 +605,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
     delivery_location,
     payment_date,
     buying_method,
+    currency,
     warranty_body_start,
     warranty_body_end,
     warranty_spring_start,
@@ -620,6 +626,9 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
 
   const title = doc_type === "receipt" ? "RECEIPT" : "INVOICE"
   const isRental = doc_type === "rental"
+  // Label only — see the `currency` note on InvoicePDFInput. Callers that
+  // never sell outside Malaysia (maintenance, AI services) omit it entirely.
+  const cur = currency ?? "RM"
 
   // A warranty only belongs on an equipment sale. Rentals keep their own terms
   // (the equipment stays Pulse's property), and maintenance / AI-service
@@ -697,8 +706,8 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
           <Text style={{ ...s.thText, ...s.colItem }}>Item</Text>
           <Text style={{ ...s.thText, ...s.colDesc }}>Description</Text>
           <Text style={{ ...s.thText, ...s.colQty }}>Quantity</Text>
-          <Text style={{ ...s.thText, ...s.colUnit }}>Unit Price (RM)</Text>
-          <Text style={{ ...s.thText, ...s.colAmt }}>Amount  (RM)</Text>
+          <Text style={{ ...s.thText, ...s.colUnit }}>{`Unit Price (${cur})`}</Text>
+          <Text style={{ ...s.thText, ...s.colAmt }}>{`Amount  (${cur})`}</Text>
         </View>
 
         {items.map((item, i) => (
@@ -719,16 +728,16 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
         {/* ── Totals ── */}
         <View style={s.totalsArea}>
           <View style={s.totalLine}>
-            <Text style={s.totalKey}>Total (RM)</Text>
+            <Text style={s.totalKey}>{`Total (${cur})`}</Text>
             <Text style={s.totalValBold}>{fmt(total)}</Text>
           </View>
           <View style={s.totalLine}>
-            <Text style={s.totalKey}>{doc_type === "receipt" ? "(-) Amount Paid (RM)" : "(-) Deposit (RM)"}</Text>
+            <Text style={s.totalKey}>{doc_type === "receipt" ? `(-) Amount Paid (${cur})` : `(-) Deposit (${cur})`}</Text>
             <Text style={s.totalVal}>{fmt(deposit)}</Text>
           </View>
           <View style={s.totalDivider} />
           <View style={s.totalLine}>
-            <Text style={s.totalKey}>Balance (RM)</Text>
+            <Text style={s.totalKey}>{`Balance (${cur})`}</Text>
             <Text style={s.totalValBold}>{fmt(balance)}</Text>
           </View>
         </View>
@@ -787,7 +796,7 @@ function InvoiceDocument(props: InvoicePDFInput & { logoSrc: string }) {
             <View style={s.sectionLine}>
               <Text style={s.sectionKey}>Rental Amount</Text>
               <Text style={s.sectionVal}>
-                {": RM" + (monthly_rental_amount ? fmt(monthly_rental_amount) : "") + " / monthly"}
+                {": " + cur + (monthly_rental_amount ? fmt(monthly_rental_amount) : "") + " / monthly"}
               </Text>
             </View>
             <View style={s.sectionLine}>
@@ -1004,6 +1013,7 @@ const InvoicePDFInputSchema = z.object({
   delivery_location: z.string().max(200).optional().nullable(),
   payment_date: z.string().max(50).optional().nullable(),
   buying_method: z.string().max(100).optional().nullable(),
+  currency: z.enum(["RM", "SGD"]).optional().nullable(),
   warranty_body_start: z.string().max(50).optional().nullable(),
   warranty_body_end: z.string().max(50).optional().nullable(),
   warranty_spring_start: z.string().max(50).optional().nullable(),

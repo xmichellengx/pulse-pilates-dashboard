@@ -171,6 +171,7 @@ export function InvoiceForm({ onClose, onSaved, initialData }: InvoiceFormProps)
         total,
         deposit: 0,
         balance: total,
+        currency: watchedValues.currency,
       }
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",
